@@ -2,6 +2,28 @@
 
 This is a Go CLI template following patterns from github.com/steipete's CLI ecosystem (gogcli, sonoscli, summarize, etc.).
 
+## Before You Start
+
+**READ EXISTING CODE FIRST** before proposing new patterns:
+
+1. Study `internal/commands/auth.go` - reference implementation showing all patterns
+2. Check `internal/output/output.go` - output formatting already implemented
+3. Review `internal/commands/root.go` - global flags and debug logging
+4. Read `internal/auth/keyring.go` - credential management patterns
+
+**Don't reinvent - reuse and extend:**
+- Output? Use `output.Print(data, format)`
+- Debug? Use `debugLog("message")`
+- Errors? Wrap with `fmt.Errorf("context: %w", err)`
+- Auth? Extend existing keyring pattern
+
+**KISS and YAGNI principles:**
+- ❌ Don't add config file until proven needed (flags + env vars usually enough for MVP)
+- ❌ Don't add helper functions until duplicated 3+ times
+- ❌ Don't add abstractions speculatively
+- ✅ Inline logic first, extract only when painful
+- ✅ Start simple, add complexity when needed
+
 ## Quick Start
 
 ```bash
@@ -168,10 +190,86 @@ For services requiring OAuth (Google, GitHub, etc.):
 
 ## Adding a New Command
 
-1. Create file: `internal/commands/myfeature.go`
-2. Define command with `RunE`
-3. Add to root in `init()`: `rootCmd.AddCommand(myFeatureCmd)`
-4. If it needs a client, create `internal/client/myservice.go`
+**Process:**
+1. Study `internal/commands/auth.go` first (reference implementation)
+2. Create file: `internal/commands/myfeature.go`
+3. Copy the pattern from existing commands
+4. Define command with `RunE`
+5. Add to root in `init()`: `rootCmd.AddCommand(myFeatureCmd)`
+6. If it needs a client, create `internal/client/myservice.go`
+
+**Checklist for new commands:**
+- [ ] Uses `RunE` (returns error), not `Run`
+- [ ] Required params as flags (e.g., `--zone`, `--duration`), not positional args (better for AI agents)
+- [ ] Uses `output.Print(data, format)` for data output to stdout
+- [ ] Uses `debugLog("message")` for debug output to stderr
+- [ ] Uses `fmt.Fprintf(os.Stderr, "...")` for user status messages
+- [ ] Wraps errors with `fmt.Errorf("context: %w", err)`
+- [ ] Respects `--format` flag (json/tsv/plain)
+- [ ] No interactive prompts (use flags + error messages instead)
+
+**Complete example:**
+
+```go
+// internal/commands/park.go
+package commands
+
+import (
+    "fmt"
+    "github.com/spf13/cobra"
+    "yourorg/mycli/internal/auth"
+    "yourorg/mycli/internal/client"
+    "yourorg/mycli/internal/output"
+)
+
+var parkCmd = &cobra.Command{
+    Use:   "park",
+    Short: "Start a parking session",
+    RunE:  runPark,
+}
+
+func init() {
+    rootCmd.AddCommand(parkCmd)
+    // All required params as flags (better for AI agents than positional args)
+    parkCmd.Flags().Int("zone", 0, "Parking zone ID (required)")
+    parkCmd.Flags().Int("duration", 30, "Duration in minutes")
+    parkCmd.MarkFlagRequired("zone")
+}
+
+func runPark(cmd *cobra.Command, args []string) error {
+    // 1. Get flags
+    zoneID, _ := cmd.Flags().GetInt("zone")
+    duration, _ := cmd.Flags().GetInt("duration")
+
+    // 2. Get credentials (flag → env → keyring)
+    email, err := auth.GetEmail(cmd)
+    if err != nil {
+        return fmt.Errorf("authentication required: %w", err)
+    }
+    password, err := auth.GetPassword(cmd)
+    if err != nil {
+        return fmt.Errorf("authentication required: %w", err)
+    }
+
+    // 3. Create client
+    apiClient := client.NewClient(email, password)
+
+    // 4. Debug logging (to stderr)
+    debugLog("starting parking at zone %d for %d minutes", zoneID, duration)
+
+    // 5. Call API
+    result, err := apiClient.StartParking(zoneID, duration)
+    if err != nil {
+        return fmt.Errorf("failed to start parking: %w", err)
+    }
+
+    // 6. User status message (to stderr)
+    fmt.Fprintf(os.Stderr, "Parking started successfully\n")
+
+    // 7. Output data (to stdout, respects --format flag)
+    return output.Print(result, GetFormat())
+}
+```
 
 ## Adding a New API Integration
 
@@ -185,6 +283,47 @@ For services requiring OAuth (Google, GitHub, etc.):
 2. Environment variables
 3. Config file (~/.config/mycli/config.yaml)
 4. Defaults (lowest)
+
+**Complete credential example:**
+
+```go
+// internal/commands/root.go - Add global credential flags
+rootCmd.PersistentFlags().String("email", "", "Account email")
+rootCmd.PersistentFlags().String("password", "", "Account password")
+
+// internal/auth/keyring.go - Priority implementation
+func GetEmail(cmd *cobra.Command) (string, error) {
+    // 1. Check CLI flag (highest priority)
+    if email, _ := cmd.Flags().GetString("email"); email != "" {
+        return email, nil
+    }
+    // 2. Check environment variable
+    if email := os.Getenv("MYCLI_EMAIL"); email != "" {
+        return email, nil
+    }
+    // 3. Check keyring
+    email, err := keyring.Get("mycli", "email")
+    if err != nil {
+        return "", fmt.Errorf("no credentials found (use --email flag, MYCLI_EMAIL env var, or 'mycli auth login')")
+    }
+    return email, nil
+}
+```
+
+**Usage examples:**
+```bash
+# CLI flags (override everything)
+mycli command --email user@example.com --password secret
+
+# Environment variables
+export MYCLI_EMAIL=user@example.com
+export MYCLI_PASSWORD=secret
+mycli command
+
+# Stored credentials (from keyring)
+mycli auth login  # Stores in keyring
+mycli command     # Uses stored credentials
+```
 
 ## Testing
 
@@ -202,6 +341,52 @@ make lint          # Run golangci-lint
 | github.com/99designs/keyring | v1.2.2 | Secure credential storage |
 | golang.org/x/oauth2 | v0.16.0 | OAuth2 flows |
 | gopkg.in/yaml.v3 | v3.0.1 | Config file parsing |
+
+## AI Agent Friendliness
+
+These CLIs are designed for AI agent integration. Follow these patterns:
+
+**1. Use flags, not positional args (for required params):**
+```bash
+# ✅ Good - self-documenting, order-independent
+mycli park --zone 17429 --duration 30
+
+# ❌ Avoid - order matters, unclear what values mean
+mycli park 17429 30
+```
+
+**2. No interactive prompts:**
+```go
+// ❌ Bad - blocks AI agents
+fmt.Print("Enter zone ID: ")
+fmt.Scanln(&zoneID)
+
+// ✅ Good - require via flags, provide helpful error
+if zoneID == 0 {
+    return fmt.Errorf("--zone flag required")
+}
+```
+
+**3. Machine-readable errors with context:**
+```go
+// When multiple options exist, output them in structured format
+if len(cars) > 1 && carFlag == "" {
+    output.Print(cars, format)  // AI can parse JSON
+    return fmt.Errorf("multiple cars found, use --car flag to specify")
+}
+```
+
+**4. Structured output (JSON/TSV):**
+```bash
+# AI agents can parse and act on this
+mycli park --zone 17429 --duration 30 --format json
+{
+  "id": 123456,
+  "zone": "17429",
+  "status": "active",
+  "cost": 0.0
+}
+```
 
 ## Reference Implementations
 
