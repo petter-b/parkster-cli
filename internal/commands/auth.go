@@ -6,8 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/petter-b/parkster-cli/internal/auth"
+	"github.com/petter-b/parkster-cli/internal/output"
+	"github.com/spf13/cobra"
 )
 
 var authCmd = &cobra.Command{
@@ -95,22 +96,15 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 func runAuthList(cmd *cobra.Command, args []string) error {
 	email, err := auth.GetEmail(nil)
 	if err != nil {
-		if format == "json" {
-			fmt.Println("[]")
-		} else {
-			fmt.Println("No credentials configured. Use 'parkster auth login' to add credentials.")
+		mode := OutputMode()
+		if mode == output.ModeJSON {
+			return output.PrintSuccess([]any{}, mode)
 		}
+		fmt.Println("No credentials configured. Use 'parkster auth login' to add credentials.")
 		return nil
 	}
 
-	if format == "json" {
-		fmt.Printf(`[{"email":"%s"}]`, email)
-		fmt.Println()
-	} else {
-		fmt.Println(email)
-	}
-
-	return nil
+	return output.PrintSuccess(map[string]string{"email": email}, OutputMode())
 }
 
 func runAuthRemove(cmd *cobra.Command, args []string) error {
@@ -123,23 +117,28 @@ func runAuthRemove(cmd *cobra.Command, args []string) error {
 }
 
 func runAuthStatus(cmd *cobra.Command, args []string) error {
+	type authStatus struct {
+		Authenticated bool   `json:"authenticated"`
+		Email         string `json:"email,omitempty"`
+	}
+
 	email, err := auth.GetEmail(nil)
 	if err != nil {
-		if format == "json" {
-			fmt.Println(`{"authenticated":false}`)
-		} else {
-			fmt.Println("Not authenticated")
+		status := authStatus{Authenticated: false}
+		mode := OutputMode()
+		if mode == output.ModeJSON {
+			return output.PrintSuccess(status, mode)
 		}
+		fmt.Println("Not authenticated")
 		return nil
 	}
 
-	if format == "json" {
-		fmt.Printf(`{"authenticated":true,"email":"%s"}`, email)
-		fmt.Println()
-	} else {
-		fmt.Printf("Logged in as: %s\n", email)
+	status := authStatus{Authenticated: true, Email: email}
+	mode := OutputMode()
+	if mode == output.ModeJSON {
+		return output.PrintSuccess(status, mode)
 	}
-
+	fmt.Printf("Logged in as: %s\n", email)
 	return nil
 }
 

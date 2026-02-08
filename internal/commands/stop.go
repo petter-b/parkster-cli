@@ -69,7 +69,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	} else if len(parkings) == 1 {
 		parkingID = parkings[0].ID
 	} else {
-		output.Print(parkings, GetFormat())
+		output.PrintSuccess(parkings, OutputMode())
 		return fmt.Errorf("multiple active parkings found. Use --parking-id flag to specify")
 	}
 
@@ -82,5 +82,5 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stderr, "Parking stopped successfully\n")
 
-	return output.Print(parking, GetFormat())
+	return output.PrintSuccess(parking, OutputMode())
 }

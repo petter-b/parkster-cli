@@ -16,7 +16,7 @@ var statusCmd = &cobra.Command{
 
 Examples:
   parkster status
-  parkster status --format json`,
+  parkster status --json`,
 	RunE: runStatus,
 }
 
@@ -48,9 +48,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	debugLog("found %d active parkings", len(parkings))
 
 	if len(parkings) == 0 {
+		if OutputMode() == output.ModeJSON {
+			return output.PrintSuccess([]any{}, OutputMode())
+		}
 		fmt.Println("No active parkings")
 		return nil
 	}
 
-	return output.Print(parkings, GetFormat())
+	return output.PrintSuccess(parkings, OutputMode())
 }

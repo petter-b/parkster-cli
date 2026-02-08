@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/petter-b/parkster-cli/internal/config"
+	"github.com/petter-b/parkster-cli/internal/output"
+	"github.com/spf13/cobra"
 )
 
 var (
 	// Global flags
-	debug      bool
-	format     string
-	configPath string
+	debug     bool
+	jsonFlag  bool
+	plainFlag bool
 
 	// Config
 	cfg *config.Config
@@ -31,65 +32,48 @@ Features:
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Load config before any command runs
 		var err error
-		cfg, err = config.Load(configPath)
+		cfg, err = config.Load("")
 		if err != nil {
 			debugLog("config load warning: %v", err)
 			cfg = config.Default()
 		}
-
-		// Apply config defaults if flags not explicitly set
-		if !cmd.Flags().Changed("format") && cfg.OutputFormat != "" {
-			format = cfg.OutputFormat
-		}
-
 		return nil
 	},
 }
 
 func init() {
-	// Global flags available to all commands
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug output to stderr")
-	rootCmd.PersistentFlags().StringVar(&format, "format", "plain", "Output format: plain|json|tsv")
-	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to config file")
+	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output as JSON with envelope")
+	rootCmd.PersistentFlags().BoolVar(&plainFlag, "plain", false, "Output as tab-separated values")
 
-	// Global credential flags (available to all commands)
+	// Global credential flags
 	rootCmd.PersistentFlags().String("email", "", "Parkster account email")
 	rootCmd.PersistentFlags().String("password", "", "Parkster account password")
 
 	// Environment variable bindings
-	if val := os.Getenv("PARKSTER_FORMAT"); val != "" && format == "plain" {
-		format = val
-	}
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true
 	}
 }
 
-// Execute runs the root command
+// Execute runs the root command, formatting errors based on output mode
 func Execute() error {
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	if err != nil {
+		output.PrintError(err.Error(), OutputMode())
+	}
+	return err
+}
+
+// OutputMode returns the current output mode based on flags
+func OutputMode() output.Mode {
+	return output.ModeFromFlags(jsonFlag, plainFlag)
 }
 
 // debugLog prints to stderr if debug mode is enabled
-func debugLog(format string, args ...any) {
+func debugLog(fmt_ string, args ...any) {
 	if debug {
-		fmt.Fprintf(os.Stderr, "DEBUG: "+format+"\n", args...)
+		fmt.Fprintf(os.Stderr, "DEBUG: "+fmt_+"\n", args...)
 	}
-}
-
-// GetFormat returns the current output format
-func GetFormat() string {
-	return format
-}
-
-// GetDebug returns whether debug mode is enabled
-func GetDebug() bool {
-	return debug
-}
-
-// GetConfig returns the loaded configuration
-func GetConfig() *config.Config {
-	return cfg
 }

@@ -74,7 +74,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else if len(user.Cars) == 0 {
 		return fmt.Errorf("no cars registered. Add a car first.")
 	} else {
-		output.Print(user.Cars, GetFormat())
+		output.PrintSuccess(user.Cars, OutputMode())
 		return fmt.Errorf("multiple cars found. Use --car flag to specify license plate")
 	}
 
@@ -97,7 +97,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else if len(user.PaymentAccounts) == 0 {
 		return fmt.Errorf("no payment methods configured. Add a payment method first.")
 	} else {
-		output.Print(user.PaymentAccounts, GetFormat())
+		output.PrintSuccess(user.PaymentAccounts, OutputMode())
 		return fmt.Errorf("multiple payment accounts found. Use --payment flag to specify payment account ID")
 	}
 
@@ -121,5 +121,5 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stderr, "Parking started successfully\n")
 
-	return output.Print(parking, GetFormat())
+	return output.PrintSuccess(parking, OutputMode())
 }
