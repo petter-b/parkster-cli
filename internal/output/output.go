@@ -8,28 +8,134 @@ import (
 	"strings"
 )
 
-// Print outputs data in the specified format
-func Print(data any, format string) error {
-	switch format {
-	case "json":
-		return printJSON(data)
-	case "tsv":
+// Mode determines how output is formatted
+type Mode int
+
+const (
+	ModeHuman Mode = iota // default: human-readable
+	ModeJSON              // --json: JSON with envelope
+	ModePlain             // --plain: TSV
+)
+
+// Envelope is the JSON output wrapper
+type Envelope struct {
+	Success bool `json:"success"`
+	Data    any  `json:"data"`
+	Error   any  `json:"error"`
+}
+
+// ModeFromFlags returns the output mode based on CLI flags
+func ModeFromFlags(jsonFlag, plainFlag bool) Mode {
+	if jsonFlag {
+		return ModeJSON
+	}
+	if plainFlag {
+		return ModePlain
+	}
+	return ModeHuman
+}
+
+// PrintSuccess outputs data in the specified mode
+func PrintSuccess(data any, mode Mode) error {
+	switch mode {
+	case ModeJSON:
+		return printJSONEnvelope(true, data, nil)
+	case ModePlain:
 		return printTSV(data)
 	default:
-		return printPlain(data)
+		return printHuman(data)
 	}
 }
 
-func printJSON(data any) error {
+// PrintError outputs an error in the specified mode.
+// In JSON mode, prints envelope to stdout. In human mode, prints to stderr.
+func PrintError(msg string, mode Mode) {
+	switch mode {
+	case ModeJSON:
+		printJSONEnvelope(false, nil, msg)
+	default:
+		fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+	}
+}
+
+func printJSONEnvelope(success bool, data any, errMsg any) error {
+	env := Envelope{
+		Success: success,
+		Data:    data,
+		Error:   errMsg,
+	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(data)
+	return enc.Encode(env)
 }
+
+// --- Human-readable output (field: value) ---
+
+func printHuman(data any) error {
+	v := reflect.ValueOf(data)
+
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// Handle slices
+	if v.Kind() == reflect.Slice {
+		for i := 0; i < v.Len(); i++ {
+			if i > 0 {
+				fmt.Println()
+			}
+			if err := printHumanItem(v.Index(i).Interface()); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return printHumanItem(data)
+}
+
+func printHumanItem(data any) error {
+	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		fmt.Println(data)
+		return nil
+	}
+
+	t := v.Type()
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		if isZero(field) {
+			continue
+		}
+
+		name := t.Field(i).Name
+		if tag := t.Field(i).Tag.Get("json"); tag != "" {
+			parts := strings.Split(tag, ",")
+			if parts[0] != "" && parts[0] != "-" {
+				name = parts[0]
+			}
+		}
+
+		fmt.Printf("%s: %v\n", name, field.Interface())
+	}
+	return nil
+}
+
+// --- TSV output ---
 
 func printTSV(data any) error {
 	v := reflect.ValueOf(data)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
 
-	// Handle slices
 	if v.Kind() == reflect.Slice {
 		for i := 0; i < v.Len(); i++ {
 			if err := printTSVRow(v.Index(i).Interface()); err != nil {
@@ -54,76 +160,19 @@ func printTSVRow(data any) error {
 	}
 
 	var fields []string
-	t := v.Type()
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		if !field.CanInterface() {
 			continue
 		}
-		// Skip empty fields
 		if isZero(field) {
 			fields = append(fields, "")
 			continue
 		}
 		fields = append(fields, fmt.Sprintf("%v", field.Interface()))
-		_ = t.Field(i) // Could use for headers
 	}
 
 	fmt.Println(strings.Join(fields, "\t"))
-	return nil
-}
-
-func printPlain(data any) error {
-	v := reflect.ValueOf(data)
-
-	// Handle slices
-	if v.Kind() == reflect.Slice {
-		for i := 0; i < v.Len(); i++ {
-			if err := printPlainItem(v.Index(i).Interface()); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	return printPlainItem(data)
-}
-
-func printPlainItem(data any) error {
-	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	// Simple types
-	if v.Kind() != reflect.Struct {
-		fmt.Println(data)
-		return nil
-	}
-
-	// Structs - print field: value
-	t := v.Type()
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		if !field.CanInterface() {
-			continue
-		}
-		if isZero(field) {
-			continue
-		}
-
-		name := t.Field(i).Name
-		// Use json tag if available
-		if tag := t.Field(i).Tag.Get("json"); tag != "" {
-			parts := strings.Split(tag, ",")
-			if parts[0] != "" && parts[0] != "-" {
-				name = parts[0]
-			}
-		}
-
-		fmt.Printf("%s: %v\n", name, field.Interface())
-	}
-
 	return nil
 }
 
@@ -145,51 +194,4 @@ func isZero(v reflect.Value) bool {
 		return v.IsNil()
 	}
 	return false
-}
-
-// Table prints data as a formatted table
-type Table struct {
-	Headers []string
-	Rows    [][]string
-}
-
-func (t *Table) Print() {
-	if len(t.Rows) == 0 {
-		return
-	}
-
-	// Calculate column widths
-	widths := make([]int, len(t.Headers))
-	for i, h := range t.Headers {
-		widths[i] = len(h)
-	}
-	for _, row := range t.Rows {
-		for i, cell := range row {
-			if i < len(widths) && len(cell) > widths[i] {
-				widths[i] = len(cell)
-			}
-		}
-	}
-
-	// Print header
-	for i, h := range t.Headers {
-		fmt.Printf("%-*s", widths[i]+2, h)
-	}
-	fmt.Println()
-
-	// Print separator
-	for _, w := range widths {
-		fmt.Print(strings.Repeat("-", w+2))
-	}
-	fmt.Println()
-
-	// Print rows
-	for _, row := range t.Rows {
-		for i, cell := range row {
-			if i < len(widths) {
-				fmt.Printf("%-*s", widths[i]+2, cell)
-			}
-		}
-		fmt.Println()
-	}
 }
