@@ -1,439 +1,384 @@
-# CLI Tool Development Guide
+# Parkster CLI Development Guide
 
-This is a Go CLI template following patterns from github.com/steipete's CLI ecosystem (gogcli, sonoscli, summarize, etc.).
+**This project uses the CLI template from `../cli-template`. Read that file first for:**
+- General CLI patterns (commands, errors, output, auth)
+- KISS/YAGNI principles
+- AI agent friendliness
+- Testing patterns
 
-## Before You Start
+This file contains **Parkster-specific** implementation details only.
 
-**READ EXISTING CODE FIRST** before proposing new patterns:
+## Quick Reference
 
-1. Study `internal/commands/auth.go` - reference implementation showing all patterns
-2. Check `internal/output/output.go` - output formatting already implemented
-3. Review `internal/commands/root.go` - global flags and debug logging
-4. Read `internal/auth/keyring.go` - credential management patterns
+- **API Documentation**: See [API.md](./API.md) for complete Parkster API reference
+- **Design Document**: See [docs/plans/2026-02-08-parkster-cli-mvp-design.md](./docs/plans/2026-02-08-parkster-cli-mvp-design.md)
+- **Template Guide**: See [../cli-template/CLAUDE.md](../cli-template/CLAUDE.md)
 
-**Don't reinvent - reuse and extend:**
-- Output? Use `output.Print(data, format)`
-- Debug? Use `debugLog("message")`
-- Errors? Wrap with `fmt.Errorf("context: %w", err)`
-- Auth? Extend existing keyring pattern
+## Parkster API Specifics
 
-**KISS and YAGNI principles:**
-- ❌ Don't add config file until proven needed (flags + env vars usually enough for MVP)
-- ❌ Don't add helper functions until duplicated 3+ times
-- ❌ Don't add abstractions speculatively
-- ✅ Inline logic first, extract only when painful
-- ✅ Start simple, add complexity when needed
+### Critical Implementation Notes
 
-## Quick Start
+These are **Parkster-specific quirks** that differ from typical REST APIs:
+
+#### 1. Form-Encoded POST/PUT (NOT JSON)
+
+All mutations use `application/x-www-form-urlencoded`, **not JSON**:
+
+```go
+// ✅ CORRECT - Form-encoded
+data := url.Values{}
+data.Set("parkingZoneId", "7713")
+data.Set("timeout", "30")
+req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+req.Body = strings.NewReader(data.Encode())
+
+// ❌ WRONG - JSON doesn't work!
+json.Marshal(payload)  // Parkster API rejects this
+```
+
+#### 2. Device Parameters Required on EVERY Request
+
+```go
+// Required on ALL requests (GET and POST)
+platform=cli
+platformVersion=1.0
+version=1
+locale=en_US
+clientTime=<unix_timestamp_ms>
+
+// For GET: add to query string
+url := fmt.Sprintf("%s?platform=cli&clientTime=%d...", endpoint, time.Now().UnixMilli())
+
+// For POST: ALSO add to form body
+data := url.Values{}
+data.Set("parkingZoneId", "123")
+data.Set("platform", "cli")        // Duplicate in body!
+data.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
+```
+
+**Implementation:**
+```go
+// internal/parkster/client.go
+func (c *Client) deviceParams() url.Values {
+    params := url.Values{}
+    params.Set("platform", "cli")
+    params.Set("platformVersion", "1.0")
+    params.Set("version", "1")
+    params.Set("locale", "en_US")
+    params.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
+    return params
+}
+```
+
+#### 3. Fee Zone ID Required to Start Parking
+
+Zone search returns basic info. **Must fetch zone details separately** to get `feeZoneId`:
+
+```go
+// ❌ WRONG - zone search doesn't include feeZoneId
+searchResp := client.SearchZones(lat, lon)
+client.StartParking(searchResp[0].ID, ...)  // Missing feeZoneId!
+
+// ✅ CORRECT - fetch details first
+searchResp := client.SearchZones(lat, lon)
+details := client.GetZone(searchResp[0].ID)
+client.StartParking(details.ID, details.FeeZone.ID, ...)  // Now have both IDs
+```
+
+#### 4. Extend Parking Uses "offset" Not "timeout"
+
+```go
+// ❌ WRONG - timeout would SET absolute timeout
+data.Set("timeout", "60")  // Would set timeout to 60 minutes total
+
+// ✅ CORRECT - offset ADDS minutes
+data.Set("offset", "30")   // Adds 30 more minutes
+```
+
+## HTTP Basic Auth
+
+Parkster uses HTTP Basic Auth with email/password:
+
+```go
+// internal/parkster/client.go
+func (c *Client) get(path string, params url.Values) (*http.Response, error) {
+    // Merge device params
+    for k, v := range c.deviceParams() {
+        params[k] = v
+    }
+
+    url := fmt.Sprintf("%s%s?%s", BaseURL, path, params.Encode())
+    req, _ := http.NewRequest("GET", url, nil)
+
+    // Basic Auth header
+    auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
+    req.Header.Set("Authorization", "Basic "+auth)
+    req.Header.Set("Accept", "application/json")
+
+    return c.http.Do(req)
+}
+
+func (c *Client) post(path string, data url.Values) (*http.Response, error) {
+    // Merge device params into BODY (not just query string!)
+    for k, v := range c.deviceParams() {
+        data[k] = v
+    }
+
+    url := fmt.Sprintf("%s%s", BaseURL, path)
+    req, _ := http.NewRequest("POST", url, strings.NewReader(data.Encode()))
+
+    // Basic Auth header
+    auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
+    req.Header.Set("Authorization", "Basic "+auth)
+    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+    return c.http.Do(req)
+}
+```
+
+## API Client Structure
+
+```go
+// internal/parkster/client.go
+package parkster
+
+const BaseURL = "https://api.parkster.se/api/mobile/v2"
+
+type Client struct {
+    http     *http.Client
+    email    string
+    password string
+}
+
+func NewClient(email, password string) *Client {
+    return &Client{
+        http:     &http.Client{Timeout: 30 * time.Second},
+        email:    email,
+        password: password,
+    }
+}
+
+// API methods (MVP)
+func (c *Client) Login() (*User, error)
+func (c *Client) GetActiveParkings() ([]Parking, error)
+func (c *Client) GetZone(zoneID int) (*Zone, error)
+func (c *Client) StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)
+func (c *Client) StopParking(parkingID int) (*Parking, error)
+func (c *Client) ExtendParking(parkingID, minutes int) (*Parking, error)
+```
+
+## Data Types
+
+```go
+// internal/parkster/types.go
+package parkster
+
+type User struct {
+    ID              int              `json:"id"`
+    Email           string           `json:"email"`
+    AccountType     string           `json:"accountType"`
+    Cars            []Car            `json:"cars"`
+    PaymentAccounts []PaymentAccount `json:"paymentAccounts"`
+}
+
+type Car struct {
+    ID          int    `json:"id"`
+    LicenseNbr  string `json:"licenseNbr"`
+    CountryCode string `json:"countryCode"`
+}
+
+type PaymentAccount struct {
+    PaymentAccountID string `json:"paymentAccountId"`
+}
+
+type Zone struct {
+    ID      int     `json:"id"`
+    Name    string  `json:"name"`
+    FeeZone FeeZone `json:"feeZone"`
+}
+
+type FeeZone struct {
+    ID       int      `json:"id"`
+    Currency Currency `json:"currency"`
+}
+
+type Currency struct {
+    Code   string `json:"code"`
+    Symbol string `json:"symbol"`
+}
+
+type Parking struct {
+    ID          int     `json:"id"`
+    ParkingZone Zone    `json:"parkingZone"`
+    Car         Car     `json:"car"`
+    StartTime   string  `json:"startTime"`
+    Timeout     int     `json:"timeout"`
+    Cost        float64 `json:"cost"`
+    Status      string  `json:"status"`
+}
+```
+
+## Authentication
+
+Parkster uses email/password credentials (Pattern C from template):
 
 ```bash
-# Build
-make build
+# Store credentials
+parkster auth login
+# Prompts for email, then password
 
-# Run
-./bin/mycli --help
+# Or use environment variables
+export PARKSTER_EMAIL=user@example.com
+export PARKSTER_PASSWORD=password123
 
-# Add authentication
-./bin/mycli auth add myaccount
-
-# Test with JSON output
-./bin/mycli auth list --format json
+# Or use flags
+parkster start --email user@example.com --password secret --zone 17429 --duration 30
 ```
 
-## Architecture
+**Priority:** CLI flags > env vars > keyring (same as template)
 
-| Component | Choice | Rationale |
-|-----------|--------|-----------|
-| Language | Go | Single binary, fast startup, cross-platform |
-| CLI Framework | spf13/cobra | Industry standard, subcommands, auto-help |
-| Credential Storage | 99designs/keyring | Cross-platform OS keychain integration |
-| Config Location | XDG (~/.config/mycli/) | Standard, respects $XDG_CONFIG_HOME |
+## Multi-Country Support
 
-## Directory Structure
+Parkster operates in multiple countries with the same API:
 
-```
-mycli/
-├── cmd/mycli/
-│   └── main.go              # Entry point - minimal, just calls Execute()
-├── internal/
-│   ├── commands/            # Cobra command definitions
-│   │   ├── root.go          # Root cmd + global flags (--format, --debug)
-│   │   ├── auth.go          # auth add/list/remove subcommands
-│   │   └── version.go       # version command
-│   ├── auth/
-│   │   ├── keyring.go       # Secure credential storage
-│   │   └── oauth.go         # OAuth2 browser flow (if needed)
-│   ├── client/              # API client(s) - add your integrations here
-│   │   └── client.go
-│   └── config/
-│       └── config.go        # Config file loading (YAML)
-├── go.mod
-├── go.sum
-├── Makefile
-├── README.md
-└── CLAUDE.md                # This file
-```
+| Country | Code | Currency | Test Zone |
+|---------|------|----------|-----------|
+| Sweden | SE | SEK (kr) | 17429 (Ericsson Kista, Stockholm) |
+| Germany | DE | EUR (€) | 7713 (Berlin, code 100028) |
+| Austria | AT | EUR (€) | 25624 (Salzburg, code 006001) |
 
-## Code Patterns
+**License plate formats:**
+- SE: `ABC123` (3 letters + 3 digits)
+- DE: `B-AB-1234` (city code format)
+- AT: `W-12345` (city code format)
 
-### 1. Command Structure (Cobra)
+## Command Examples
 
-Always use `RunE` (returns error) not `Run`:
+### Start Parking
 
-```go
-var myCmd = &cobra.Command{
-    Use:   "mycommand [args]",
-    Short: "One-line description",
-    Long:  `Longer description with examples.`,
-    Args:  cobra.ExactArgs(1),  // or MinimumNArgs, MaximumNArgs
-    RunE: func(cmd *cobra.Command, args []string) error {
-        // Get flags
-        format, _ := cmd.Flags().GetString("format")
-        
-        // Do work
-        result, err := doSomething(args[0])
-        if err != nil {
-            return fmt.Errorf("failed to do something: %w", err)
-        }
-        
-        // Output
-        return output.Print(result, format)
-    },
-}
-```
-
-### 2. Error Handling
-
-Wrap errors with context, let Cobra handle printing:
-
-```go
-// Good
-return fmt.Errorf("failed to connect to %s: %w", addr, err)
-
-// Bad
-fmt.Println("Error:", err)
-return err
-```
-
-### 3. Output Formatting
-
-Support machine-readable output for AI agents:
-
-```go
-// internal/output/output.go
-func Print(data any, format string) error {
-    switch format {
-    case "json":
-        enc := json.NewEncoder(os.Stdout)
-        enc.SetIndent("", "  ")
-        return enc.Encode(data)
-    case "tsv":
-        // Tab-separated for easy parsing
-        return printTSV(data)
-    default: // "plain"
-        return printPlain(data)
-    }
-}
-```
-
-### 4. Credential Storage
-
-Never store secrets in config files:
-
-```go
-// Store
-err := auth.SetCredential("service-name", "api-key-value")
-
-// Retrieve (checks env var first, then keyring)
-key, err := auth.GetCredential("service-name")
-```
-
-### 5. Debug/Verbose Output
-
-Debug info goes to stderr, data to stdout:
-
-```go
-if debug {
-    fmt.Fprintf(os.Stderr, "DEBUG: connecting to %s\n", url)
-}
-// Actual output to stdout
-fmt.Println(result)
-```
-
-## Authentication Patterns
-
-### Pattern A: API Key (Simple)
-
-For services with static API keys:
-
-```go
-// User sets via: mycli auth add servicename
-// Or env var: MYCLI_SERVICENAME_API_KEY=xxx
-
-key, err := auth.GetCredential("servicename")
-client := api.NewClient(key)
-```
-
-### Pattern B: OAuth2 Browser Flow
-
-For services requiring OAuth (Google, GitHub, etc.):
-
-```go
-// mycli auth add user@example.com --services gmail,drive
-
-// 1. Open browser to auth URL
-// 2. Start local HTTP server on localhost:8085
-// 3. Receive callback with auth code
-// 4. Exchange for tokens
-// 5. Store refresh token in keyring
-```
-
-## Adding a New Command
-
-**Process:**
-1. Study `internal/commands/auth.go` first (reference implementation)
-2. Create file: `internal/commands/myfeature.go`
-3. Copy the pattern from existing commands
-4. Define command with `RunE`
-5. Add to root in `init()`: `rootCmd.AddCommand(myFeatureCmd)`
-6. If it needs a client, create `internal/client/myservice.go`
-
-**Checklist for new commands:**
-- [ ] Uses `RunE` (returns error), not `Run`
-- [ ] Required params as flags (e.g., `--zone`, `--duration`), not positional args (better for AI agents)
-- [ ] Uses `output.Print(data, format)` for data output to stdout
-- [ ] Uses `debugLog("message")` for debug output to stderr
-- [ ] Uses `fmt.Fprintf(os.Stderr, "...")` for user status messages
-- [ ] Wraps errors with `fmt.Errorf("context: %w", err)`
-- [ ] Respects `--format` flag (json/tsv/plain)
-- [ ] No interactive prompts (use flags + error messages instead)
-
-**Complete example:**
-
-```go
-// internal/commands/park.go
-package commands
-
-import (
-    "fmt"
-    "github.com/spf13/cobra"
-    "yourorg/mycli/internal/auth"
-    "yourorg/mycli/internal/client"
-    "yourorg/mycli/internal/output"
-)
-
-var parkCmd = &cobra.Command{
-    Use:   "park",
-    Short: "Start a parking session",
-    RunE:  runPark,
-}
-
-func init() {
-    rootCmd.AddCommand(parkCmd)
-    // All required params as flags (better for AI agents than positional args)
-    parkCmd.Flags().Int("zone", 0, "Parking zone ID (required)")
-    parkCmd.Flags().Int("duration", 30, "Duration in minutes")
-    parkCmd.MarkFlagRequired("zone")
-}
-
-func runPark(cmd *cobra.Command, args []string) error {
-    // 1. Get flags
-    zoneID, _ := cmd.Flags().GetInt("zone")
-    duration, _ := cmd.Flags().GetInt("duration")
-
-    // 2. Get credentials (flag → env → keyring)
-    email, err := auth.GetEmail(cmd)
-    if err != nil {
-        return fmt.Errorf("authentication required: %w", err)
-    }
-    password, err := auth.GetPassword(cmd)
-    if err != nil {
-        return fmt.Errorf("authentication required: %w", err)
-    }
-
-    // 3. Create client
-    apiClient := client.NewClient(email, password)
-
-    // 4. Debug logging (to stderr)
-    debugLog("starting parking at zone %d for %d minutes", zoneID, duration)
-
-    // 5. Call API
-    result, err := apiClient.StartParking(zoneID, duration)
-    if err != nil {
-        return fmt.Errorf("failed to start parking: %w", err)
-    }
-
-    // 6. User status message (to stderr)
-    fmt.Fprintf(os.Stderr, "Parking started successfully\n")
-
-    // 7. Output data (to stdout, respects --format flag)
-    return output.Print(result, GetFormat())
-}
-```
-
-## Adding a New API Integration
-
-1. Create client: `internal/client/servicename.go`
-2. Add auth command extension in `internal/commands/auth.go`
-3. Create feature commands that use the client
-
-## Configuration Priority
-
-1. CLI flags (highest)
-2. Environment variables
-3. Config file (~/.config/mycli/config.yaml)
-4. Defaults (lowest)
-
-**Complete credential example:**
-
-```go
-// internal/commands/root.go - Add global credential flags
-rootCmd.PersistentFlags().String("email", "", "Account email")
-rootCmd.PersistentFlags().String("password", "", "Account password")
-
-// internal/auth/keyring.go - Priority implementation
-func GetEmail(cmd *cobra.Command) (string, error) {
-    // 1. Check CLI flag (highest priority)
-    if email, _ := cmd.Flags().GetString("email"); email != "" {
-        return email, nil
-    }
-    // 2. Check environment variable
-    if email := os.Getenv("MYCLI_EMAIL"); email != "" {
-        return email, nil
-    }
-    // 3. Check keyring
-    email, err := keyring.Get("mycli", "email")
-    if err != nil {
-        return "", fmt.Errorf("no credentials found (use --email flag, MYCLI_EMAIL env var, or 'mycli auth login')")
-    }
-    return email, nil
-}
-```
-
-**Usage examples:**
 ```bash
-# CLI flags (override everything)
-mycli command --email user@example.com --password secret
+# Basic usage
+parkster start --zone 17429 --duration 30
 
-# Environment variables
-export MYCLI_EMAIL=user@example.com
-export MYCLI_PASSWORD=secret
-mycli command
+# With explicit car selection
+parkster start --zone 17429 --duration 30 --car ABC123
 
-# Stored credentials (from keyring)
-mycli auth login  # Stores in keyring
-mycli command     # Uses stored credentials
+# Full explicit mode (good for testing/CI)
+parkster start \
+  --email user@example.com \
+  --password secret \
+  --zone 17429 \
+  --duration 30 \
+  --car ABC123 \
+  --payment pay123 \
+  --format json
+```
+
+**Flow:**
+1. Get user profile (cars, payment accounts)
+2. Select car (flag or auto if only one)
+3. Select payment (flag or auto if only one)
+4. Get zone details (need feeZoneId)
+5. Start parking
+6. Output result
+
+### Stop Parking
+
+```bash
+# Auto-stop if only one active
+parkster stop
+
+# Explicit parking ID
+parkster stop --parking-id 123456
+```
+
+### Extend Parking
+
+```bash
+# Add 30 minutes (auto if only one active)
+parkster extend --minutes 30
+
+# Explicit parking ID
+parkster extend --minutes 30 --parking-id 123456
+```
+
+### Status
+
+```bash
+# View active parkings
+parkster status
+
+# JSON output for AI agents
+parkster status --format json
 ```
 
 ## Testing
 
+See [TESTING.md](./TESTING.md) for Python test suite that validates the API.
+
 ```bash
-make test          # Run all tests
-make test-verbose  # With verbose output
-make lint          # Run golangci-lint
+# Run Python API tests
+cd /path/to/parkster-cli
+python3 test_api.py
+
+# Test zones from API.md
+# Sweden: 17429 (Ericsson Kista) - 10 SEK/hour
+# Germany: 7713 (Berlin) - €3/hour
+# Austria: 25624 (Salzburg) - €2.20/hour
 ```
 
-## Key Dependencies
+## Common Workflows
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| github.com/spf13/cobra | v1.8.0 | CLI framework |
-| github.com/99designs/keyring | v1.2.2 | Secure credential storage |
-| golang.org/x/oauth2 | v0.16.0 | OAuth2 flows |
-| gopkg.in/yaml.v3 | v3.0.1 | Config file parsing |
+### Start Parking Workflow
 
-## AI Agent Friendliness
+```
+User: parkster start --zone 17429 --duration 30
 
-These CLIs are designed for AI agent integration. Follow these patterns:
-
-**1. Use flags, not positional args (for required params):**
-```bash
-# ✅ Good - self-documenting, order-independent
-mycli park --zone 17429 --duration 30
-
-# ❌ Avoid - order matters, unclear what values mean
-mycli park 17429 30
+1. auth.GetEmail() → "user@example.com" (flag > env > keyring)
+2. auth.GetPassword() → "password123" (flag > env > keyring)
+3. client = parkster.NewClient(email, password)
+4. user = client.Login()
+   → GET /people/login (with device params + Basic Auth)
+   → Returns: {cars: [{id: 67890, licenseNbr: "ABC123"}], ...}
+5. Select car: only one → use it
+6. Select payment: user.PaymentAccounts[0]
+7. zone = client.GetZone(17429)
+   → GET /parking-zones/17429
+   → Returns: {id: 17429, feeZone: {id: 27545}}
+8. parking = client.StartParking(17429, 27545, 67890, paymentID, 30)
+   → POST /parkings/short-term (form-encoded + device params in body!)
+   → Returns: {id: 123456, status: "ACTIVE", cost: 0.0}
+9. output.Print(parking, "plain")
 ```
 
-**2. No interactive prompts:**
-```go
-// ❌ Bad - blocks AI agents
-fmt.Print("Enter zone ID: ")
-fmt.Scanln(&zoneID)
+## Post-MVP Features
 
-// ✅ Good - require via flags, provide helpful error
-if zoneID == 0 {
-    return fmt.Errorf("--zone flag required")
-}
-```
+See design document for full list. Key additions:
 
-**3. Machine-readable errors with context:**
-```go
-// When multiple options exist, output them in structured format
-if len(cars) > 1 && carFlag == "" {
-    output.Print(cars, format)  // AI can parse JSON
-    return fmt.Errorf("multiple cars found, use --car flag to specify")
-}
-```
+**Zone management:**
+- `parkster zones search --lat 59.373 --lon 17.893`
+- `parkster zones info <zone-id>`
 
-**4. Structured output (JSON/TSV):**
-```bash
-# AI agents can parse and act on this
-mycli park --zone 17429 --duration 30 --format json
-{
-  "id": 123456,
-  "zone": "17429",
-  "status": "active",
-  "cost": 0.0
-}
-```
+**Car management:**
+- `parkster cars list`
+- `parkster cars add <license> --country SE`
+- `parkster cars remove <license>`
 
-## Reference Implementations
+**History & cost:**
+- `parkster history`
+- `parkster cost-estimate --zone 17429 --duration 30`
 
-Study these for patterns:
+**Config file:**
+- `~/.config/parkster/config.yaml`
+- `preferred_car`, `preferred_payment`, `default_country`
 
-- **github.com/steipete/gogcli** - OAuth2 + Google APIs, multi-account
-- **github.com/steipete/sonoscli** - Local network discovery, device control
-- **github.com/steipete/summarize** - TypeScript, API keys, local daemon
-- **github.com/steipete/Peekaboo** - Swift, macOS system integration
+## Remember
 
-## Common Tasks
-
-### "Add support for ServiceX API"
-
-1. Get API docs, identify auth method (API key vs OAuth)
-2. Create `internal/client/servicex.go` with API methods
-3. Add auth storage in `internal/commands/auth.go`
-4. Create commands in `internal/commands/servicex.go`
-5. Document in README.md
-
-### "Add a new subcommand"
-
-```go
-// internal/commands/newcmd.go
-package commands
-
-import "github.com/spf13/cobra"
-
-var newCmd = &cobra.Command{
-    Use:   "new",
-    Short: "Does something new",
-    RunE:  runNew,
-}
-
-func init() {
-    rootCmd.AddCommand(newCmd)
-    newCmd.Flags().String("option", "default", "An option")
-}
-
-func runNew(cmd *cobra.Command, args []string) error {
-    // Implementation
-    return nil
-}
-```
-
-### "Support a config file option"
-
-1. Add field to `Config` struct in `internal/config/config.go`
-2. Add corresponding flag in command
-3. In `RunE`, check: flag → env → config → default
+1. **Read ../cli-template/CLAUDE.md first** - it has the patterns
+2. **Parkster quirks**:
+   - Form-encoded POST (not JSON)
+   - Device params everywhere
+   - Fee zone ID required
+   - Extend uses offset
+3. **See API.md** - complete API reference with examples
+4. **KISS/YAGNI** - don't add features until needed
