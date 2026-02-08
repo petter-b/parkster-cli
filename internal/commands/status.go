@@ -45,5 +45,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	debugLog("found %d active parkings", len(parkings))
 
+	if len(parkings) == 0 {
+		fmt.Println("No active parkings")
+		return nil
+	}
+
 	return output.Print(parkings, GetFormat())
 }

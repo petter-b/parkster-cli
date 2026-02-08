@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean install help
+.PHONY: build test test-integration lint fmt clean install help
 
 # Variables
 BINARY_NAME := parkster
@@ -39,6 +39,17 @@ install:
 test:
 	@echo "Running tests..."
 	$(GOTEST) -v ./...
+
+## test-integration: Run integration tests against live API (requires .env)
+test-integration:
+	@echo "Running integration tests..."
+	@if [ -f .env ]; then \
+		set -a && . ./.env && set +a && \
+		$(GOTEST) -v -tags integration ./internal/parkster/; \
+	else \
+		echo "Error: .env file not found. Create it with PARKSTER_USERNAME and PARKSTER_PASSWORD."; \
+		exit 1; \
+	fi
 
 ## test-cover: Run tests with coverage
 test-cover:
