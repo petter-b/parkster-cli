@@ -3,103 +3,108 @@
 [![CI](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/petter-b/parkster-cli/badge.svg)](https://codecov.io/gh/petter-b/parkster-cli)
 
-A command-line tool for managing Parkster parking sessions.
-
-## Features
-
-- **Secure credential storage** via OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager)
-- **OAuth2 browser flow** for services requiring it
-- **JSON output** for scripting and AI agent integration
-- **XDG-compliant** configuration (`~/.config/parkster/`)
+A command-line tool for managing [Parkster](https://parkster.com) parking sessions. Start, stop, extend, and check parking status from your terminal.
 
 ## Install
 
 ```bash
-# From source
-go install github.com/yourorg/parkster/cmd/parkster@latest
-
-# Or build locally
+# Build from source
 make build
 ./bin/parkster --help
+
+# Or install to $GOPATH/bin
+make install
 ```
+
+Requires Go 1.22+.
 
 ## Quick Start
 
 ```bash
-# Add API credentials
-parkster auth add myservice
-# Enter API key when prompted
+# Store credentials in OS keychain
+parkster auth login
 
-# Or set via environment variable
-export PARKSTER_MYSERVICE_API_KEY=sk-xxx
+# Start a 30-minute parking session
+parkster start --zone 17429 --duration 30
+
+# Check active parkings
+parkster status
+
+# Extend by 15 minutes
+parkster extend --minutes 15
+
+# Stop parking
+parkster stop
 ```
 
-## Usage
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `parkster start` | Start a parking session |
+| `parkster stop` | Stop an active parking session |
+| `parkster extend` | Extend parking duration |
+| `parkster status` | View active parking sessions |
+| `parkster auth login` | Store credentials in OS keychain |
+| `parkster auth logout` | Remove stored credentials |
+| `parkster auth status` | Check authentication status |
+| `parkster version` | Show version information |
+
+### Start Parking
 
 ```bash
-# Show help
-parkster --help
-
-# List configured services
-parkster auth list
-
-# Check auth status
-parkster auth status
-
-# JSON output for scripting
-parkster auth list --format json
+parkster start --zone 17429 --duration 30
+parkster start --zone 17429 --duration 60 --car ABC123 --payment pay123
 ```
 
-## Configuration
+Flags: `--zone` (required), `--duration` (default: 30), `--car`, `--payment`
 
-Config file: `~/.config/parkster/config.yaml`
+If you have a single car and payment method, they are auto-selected.
 
-```yaml
-output_format: plain  # plain, json, tsv
-timeout: 30s
-debug: false
-default_account: myservice
+### Stop / Extend
 
-services:
-  myservice:
-    base_url: https://api.example.com/v1
-    timeout: 60s
+```bash
+parkster stop                        # auto-selects if only one active
+parkster stop --parking-id 123456
+
+parkster extend --minutes 15         # auto-selects if only one active
+parkster extend --minutes 30 --parking-id 123456
 ```
+
+## Authentication
+
+Credentials are resolved in this order:
+
+1. CLI flags: `--email` and `--password`
+2. Environment variables: `PARKSTER_EMAIL` and `PARKSTER_PASSWORD`
+3. OS keychain (stored via `parkster auth login`)
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `PARKSTER_FORMAT` | Default output format (plain/json/tsv) |
-| `PARKSTER_DEBUG` | Enable debug output (1/true) |
-| `PARKSTER_<SERVICE>_API_KEY` | API key for a service |
+| `PARKSTER_EMAIL` | Account email |
+| `PARKSTER_PASSWORD` | Account password |
+| `PARKSTER_DEBUG` | Enable debug output (`1` or `true`) |
+| `PARKSTER_FORMAT` | Default output format (`plain`/`json`/`tsv`) |
+
+## Output Formats
+
+```bash
+parkster status                  # human-readable (default)
+parkster status --format json    # JSON output
+parkster status --format tsv     # tab-separated values
+```
 
 ## Development
 
 ```bash
-# Build
-make build
-
-# Test
-make test
-
-# Lint (requires golangci-lint)
-make lint
-
-# Format
-make fmt
-
-# Run with debug
-make dev ARGS="auth list"
+make build          # Build binary
+make test           # Run tests
+make test-cover     # Run tests with coverage report
+make lint           # Run linter (requires golangci-lint)
+make fmt            # Format code
 ```
-
-## Adding a New Service Integration
-
-1. Create client: `internal/client/myservice.go`
-2. Add commands: `internal/commands/myservice.go`
-3. Update README with usage
-
-See `CLAUDE.md` for detailed patterns and examples.
 
 ## License
 
