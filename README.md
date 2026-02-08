@@ -1,5 +1,8 @@
 # Parkster CLI
 
+[![CI](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/petter-b/parkster-cli/badge.svg)](https://codecov.io/gh/petter-b/parkster-cli)
+
 A command-line tool for managing Parkster parking sessions.
 
 ## Features
