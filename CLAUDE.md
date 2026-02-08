@@ -15,6 +15,89 @@
 
 This file contains **Parkster-specific** implementation details only.
 
+## Testing
+
+**CRITICAL: Use Test-Driven Development (TDD) for all new features.**
+
+### TDD Workflow
+
+**For ANY implementation task, use the `superpowers:test-driven-development` skill BEFORE writing code.**
+
+This skill ensures:
+1. Write failing test first
+2. Implement minimal code to pass
+3. Refactor with confidence
+4. Maintain high coverage
+
+### What to Test
+
+**Always test:**
+- API client methods (use `httptest` for mocking)
+- Command logic (mock the API client)
+- Credential resolution (flags > env > keyring)
+- Error handling and edge cases
+
+**Test files:**
+- `internal/parkster/client_test.go` - API client with mock HTTP
+- `internal/parkster/types_test.go` - Type marshaling/unmarshaling
+- `internal/commands/*_test.go` - Command execution with mocks
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make test-cover
+# Opens coverage.html in browser
+
+# Run specific package
+go test ./internal/parkster/...
+
+# Run with verbose output
+go test -v ./...
+```
+
+### Coverage Targets
+
+- **Minimum**: 70% overall coverage
+- **Critical paths**: 90%+ (API client, auth, commands)
+- **Skip**: Main function, simple getters
+
+### Example: Testing API Client
+
+```go
+// internal/parkster/client_test.go
+func TestLogin_Success(t *testing.T) {
+    // Mock HTTP server
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Verify request
+        auth := r.Header.Get("Authorization")
+        if !strings.HasPrefix(auth, "Basic ") {
+            t.Fatal("Missing Basic auth")
+        }
+
+        // Return mock response
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(User{ID: 1, Email: "test@example.com"})
+    }))
+    defer server.Close()
+
+    // Test with mock
+    client := NewClient("test@example.com", "password")
+    client.baseURL = server.URL // Allow override for testing
+
+    user, err := client.Login()
+    if err != nil {
+        t.Fatalf("Login failed: %v", err)
+    }
+    if user.ID != 1 {
+        t.Errorf("Expected ID 1, got %d", user.ID)
+    }
+}
+```
+
 ## Quick Reference
 
 - **API Documentation**: See [API.md](./API.md) for complete Parkster API reference
