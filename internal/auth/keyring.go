@@ -7,9 +7,10 @@ import (
 	"strings"
 
 	"github.com/99designs/keyring"
+	"github.com/spf13/cobra"
 )
 
-const serviceName = "mycli"
+const serviceName = "parkster"
 
 // Store wraps keyring operations
 type Store struct {
@@ -120,4 +121,91 @@ func configDir() string {
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", serviceName)
+}
+
+// GetEmail retrieves email from flags, env, or keyring
+func GetEmail(cmd *cobra.Command) (string, error) {
+	// 1. Check CLI flag
+	if cmd != nil {
+		if email, _ := cmd.Flags().GetString("email"); email != "" {
+			return email, nil
+		}
+	}
+
+	// 2. Check environment variable
+	if email := os.Getenv("PARKSTER_EMAIL"); email != "" {
+		return email, nil
+	}
+
+	// 3. Check keyring
+	store, err := OpenKeyring()
+	if err != nil {
+		return "", fmt.Errorf("no credentials found (use --email flag, PARKSTER_EMAIL env var, or 'parkster auth login')")
+	}
+
+	email, err := store.Get("email")
+	if err != nil {
+		return "", fmt.Errorf("no credentials found (use --email flag, PARKSTER_EMAIL env var, or 'parkster auth login')")
+	}
+
+	return email, nil
+}
+
+// GetPassword retrieves password from flags, env, or keyring
+func GetPassword(cmd *cobra.Command) (string, error) {
+	// 1. Check CLI flag
+	if cmd != nil {
+		if password, _ := cmd.Flags().GetString("password"); password != "" {
+			return password, nil
+		}
+	}
+
+	// 2. Check environment variable
+	if password := os.Getenv("PARKSTER_PASSWORD"); password != "" {
+		return password, nil
+	}
+
+	// 3. Check keyring
+	store, err := OpenKeyring()
+	if err != nil {
+		return "", fmt.Errorf("no credentials found (use --password flag, PARKSTER_PASSWORD env var, or 'parkster auth login')")
+	}
+
+	password, err := store.Get("password")
+	if err != nil {
+		return "", fmt.Errorf("no credentials found (use --password flag, PARKSTER_PASSWORD env var, or 'parkster auth login')")
+	}
+
+	return password, nil
+}
+
+// SaveCredentials stores email and password in keyring
+func SaveCredentials(email, password string) error {
+	store, err := OpenKeyring()
+	if err != nil {
+		return fmt.Errorf("failed to open keyring: %w", err)
+	}
+
+	if err := store.Set("email", email); err != nil {
+		return fmt.Errorf("failed to store email: %w", err)
+	}
+
+	if err := store.Set("password", password); err != nil {
+		return fmt.Errorf("failed to store password: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteCredentials removes email and password from keyring
+func DeleteCredentials() error {
+	store, err := OpenKeyring()
+	if err != nil {
+		return fmt.Errorf("failed to open keyring: %w", err)
+	}
+
+	_ = store.Delete("email")    // Ignore errors
+	_ = store.Delete("password") // Ignore errors
+
+	return nil
 }

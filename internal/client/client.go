@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yourorg/mycli/internal/auth"
+	"github.com/petter-b/parkster-cli/internal/auth"
 )
 
 // Client is a generic API client template

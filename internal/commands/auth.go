@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/yourorg/mycli/internal/auth"
+	"github.com/petter-b/parkster-cli/internal/auth"
 )
 
 var authCmd = &cobra.Command{
