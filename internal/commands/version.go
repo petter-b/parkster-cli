@@ -22,7 +22,7 @@ var versionCmd = &cobra.Command{
 			fmt.Printf(`{"version":"%s","commit":"%s","build_date":"%s","go_version":"%s","os":"%s","arch":"%s"}`+"\n",
 				Version, Commit, BuildDate, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		} else {
-			fmt.Printf("mycli %s\n", Version)
+			fmt.Printf("parkster %s\n", Version)
 			fmt.Printf("  commit:     %s\n", Commit)
 			fmt.Printf("  built:      %s\n", BuildDate)
 			fmt.Printf("  go version: %s\n", runtime.Version())

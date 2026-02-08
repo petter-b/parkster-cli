@@ -19,15 +19,15 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "mycli",
-	Short: "A CLI tool following steipete patterns",
-	Long: `mycli is a command-line tool built with Go and Cobra.
+	Use:   "parkster",
+	Short: "Manage Parkster parking sessions from the terminal",
+	Long: `parkster is a command-line tool for managing Parkster parking sessions.
 
-It demonstrates best practices from github.com/steipete's CLI ecosystem:
-- Secure credential storage via OS keychain
+Features:
+- Start, stop, and extend parking sessions
+- View active parking status
 - JSON output for AI agent integration
-- OAuth2 browser flow authentication
-- XDG-compliant configuration`,
+- Secure credential storage via OS keychain`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -54,11 +54,15 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&format, "format", "plain", "Output format: plain|json|tsv")
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to config file")
 
+	// Global credential flags (available to all commands)
+	rootCmd.PersistentFlags().String("email", "", "Parkster account email")
+	rootCmd.PersistentFlags().String("password", "", "Parkster account password")
+
 	// Environment variable bindings
-	if val := os.Getenv("MYCLI_FORMAT"); val != "" && format == "plain" {
+	if val := os.Getenv("PARKSTER_FORMAT"); val != "" && format == "plain" {
 		format = val
 	}
-	if os.Getenv("MYCLI_DEBUG") == "1" || os.Getenv("MYCLI_DEBUG") == "true" {
+	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true
 	}
 }
