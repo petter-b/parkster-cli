@@ -1,4 +1,4 @@
-.PHONY: build test test-integration lint fmt clean install help
+.PHONY: build test test-integration lint fmt clean install help setup-hooks
 
 # Variables
 BINARY_NAME := parkster
@@ -82,6 +82,11 @@ fmt:
 tidy:
 	@echo "Tidying dependencies..."
 	$(GOMOD) tidy
+
+## setup-hooks: Configure git to use project hooks
+setup-hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks configured."
 
 ## clean: Remove build artifacts
 clean:
