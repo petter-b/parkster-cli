@@ -130,20 +130,15 @@ json.Marshal(payload)  // Parkster API rejects this
 
 ```go
 // Required on ALL requests (GET and POST)
-platform=cli
-platformVersion=1.0
-version=1
+// IMPORTANT: Must mimic iOS app - API rejects custom platform identifiers
+platform=ios
+platformVersion=26.2
+version=626
 locale=en_US
 clientTime=<unix_timestamp_ms>
 
 // For GET: add to query string
-url := fmt.Sprintf("%s?platform=cli&clientTime=%d...", endpoint, time.Now().UnixMilli())
-
 // For POST: ALSO add to form body
-data := url.Values{}
-data.Set("parkingZoneId", "123")
-data.Set("platform", "cli")        // Duplicate in body!
-data.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
 ```
 
 **Implementation:**
@@ -151,9 +146,9 @@ data.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
 // internal/parkster/client.go
 func (c *Client) deviceParams() url.Values {
     params := url.Values{}
-    params.Set("platform", "cli")
-    params.Set("platformVersion", "1.0")
-    params.Set("version", "1")
+    params.Set("platform", "ios")
+    params.Set("platformVersion", "26.2")
+    params.Set("version", "626")
     params.Set("locale", "en_US")
     params.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
     return params
@@ -361,7 +356,7 @@ parkster start \
   --duration 30 \
   --car ABC123 \
   --payment pay123 \
-  --format json
+  --json
 ```
 
 **Flow:**
@@ -399,7 +394,7 @@ parkster extend --minutes 30 --parking-id 123456
 parkster status
 
 # JSON output for AI agents
-parkster status --format json
+parkster status --json
 ```
 
 ## Testing
@@ -462,6 +457,16 @@ See design document for full list. Key additions:
 - `~/.config/parkster/config.yaml`
 - `preferred_car`, `preferred_payment`, `default_country`
 
+## Output Flags (TODO: migrate from MVP)
+
+The MVP uses `--format json|plain|tsv`. This needs to be migrated to match the steipete reference CLIs (gog, wacli):
+
+- **`--json`** boolean flag for JSON output (not `--format json`)
+- **`--plain`** boolean flag for TSV output (not `--format tsv`)
+- Default (neither flag): human-readable colored output
+- JSON mode uses envelope: `{"success":true,"data":...,"error":null}`
+- Errors in JSON mode: `{"success":false,"data":null,"error":"message"}`
+
 ## Remember
 
 1. **Read ../cli-template/CLAUDE.md first** - it has the patterns
@@ -472,3 +477,4 @@ See design document for full list. Key additions:
    - Extend uses offset
 3. **See API.md** - complete API reference with examples
 4. **KISS/YAGNI** - don't add features until needed
+5. **Output flags**: Use `--json` / `--plain`, not `--format` (see steipete CLIs)
