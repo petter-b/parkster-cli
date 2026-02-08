@@ -32,14 +32,15 @@ func TestDeviceParams(t *testing.T) {
 	params := client.deviceParams()
 
 	// Check all required parameters exist
-	if params.Get("platform") != "cli" {
-		t.Errorf("Expected platform 'cli', got %s", params.Get("platform"))
+	// Must use ios platform params — API rejects platform=cli with "Client too old"
+	if params.Get("platform") != "ios" {
+		t.Errorf("Expected platform 'ios', got %s", params.Get("platform"))
 	}
-	if params.Get("platformVersion") != "1.0" {
-		t.Errorf("Expected platformVersion '1.0', got %s", params.Get("platformVersion"))
+	if params.Get("platformVersion") != "26.2" {
+		t.Errorf("Expected platformVersion '26.2', got %s", params.Get("platformVersion"))
 	}
-	if params.Get("version") != "1" {
-		t.Errorf("Expected version '1', got %s", params.Get("version"))
+	if params.Get("version") != "626" {
+		t.Errorf("Expected version '626', got %s", params.Get("version"))
 	}
 	if params.Get("locale") != "en_US" {
 		t.Errorf("Expected locale 'en_US', got %s", params.Get("locale"))
@@ -76,8 +77,8 @@ func TestGet_BasicAuth(t *testing.T) {
 
 		// Verify device params in query string
 		query := r.URL.Query()
-		if query.Get("platform") != "cli" {
-			t.Errorf("Expected platform 'cli' in query, got %s", query.Get("platform"))
+		if query.Get("platform") != "ios" {
+			t.Errorf("Expected platform 'ios' in query, got %s", query.Get("platform"))
 		}
 		if query.Get("clientTime") == "" {
 			t.Error("Missing clientTime in query")
@@ -133,8 +134,8 @@ func TestPost_FormEncoded(t *testing.T) {
 		}
 
 		// Verify device params in body
-		if r.FormValue("platform") != "cli" {
-			t.Errorf("Expected platform 'cli' in body, got %s", r.FormValue("platform"))
+		if r.FormValue("platform") != "ios" {
+			t.Errorf("Expected platform 'ios' in body, got %s", r.FormValue("platform"))
 		}
 		if r.FormValue("clientTime") == "" {
 			t.Error("Missing clientTime in body")
@@ -190,8 +191,8 @@ func TestPut_FormEncoded(t *testing.T) {
 		}
 
 		// Verify device params in body
-		if r.FormValue("platform") != "cli" {
-			t.Errorf("Expected platform 'cli' in body, got %s", r.FormValue("platform"))
+		if r.FormValue("platform") != "ios" {
+			t.Errorf("Expected platform 'ios' in body, got %s", r.FormValue("platform"))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -405,7 +406,7 @@ func TestStartParking_Success(t *testing.T) {
 			t.Errorf("Expected timeout=30, got %s", r.FormValue("timeout"))
 		}
 		// Verify device params are in form body
-		if r.FormValue("platform") != "cli" {
+		if r.FormValue("platform") != "ios" {
 			t.Errorf("Expected platform=cli in body, got %s", r.FormValue("platform"))
 		}
 

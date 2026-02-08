@@ -33,9 +33,9 @@ func NewClient(email, password string) *Client {
 // deviceParams returns required device parameters for all requests
 func (c *Client) deviceParams() url.Values {
 	params := url.Values{}
-	params.Set("platform", "cli")
-	params.Set("platformVersion", "1.0")
-	params.Set("version", "1")
+	params.Set("platform", "ios")
+	params.Set("platformVersion", "26.2")
+	params.Set("version", "626")
 	params.Set("locale", "en_US")
 	params.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
 	return params
