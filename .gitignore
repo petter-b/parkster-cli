@@ -1,0 +1,36 @@
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+bin/
+dist/
+*.o
+*.a
+*.so
+*.exe
+
+# mitmproxy flows
+flows
+flows.*
+*.mitm
+
+# Temporary/unknown files
+-

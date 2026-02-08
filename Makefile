@@ -1,0 +1,118 @@
+.PHONY: build test lint fmt clean install help
+
+# Variables
+BINARY_NAME := mycli
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS := -ldflags "-X github.com/yourorg/mycli/internal/commands.Version=$(VERSION) \
+                     -X github.com/yourorg/mycli/internal/commands.Commit=$(COMMIT) \
+                     -X github.com/yourorg/mycli/internal/commands.BuildDate=$(BUILD_DATE)"
+
+# Go commands
+GOCMD := go
+GOBUILD := $(GOCMD) build
+GOTEST := $(GOCMD) test
+GOGET := $(GOCMD) get
+GOMOD := $(GOCMD) mod
+
+# Directories
+BIN_DIR := ./bin
+CMD_DIR := ./cmd/mycli
+
+# Default target
+all: build
+
+## build: Build the binary
+build:
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p $(BIN_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME) $(CMD_DIR)
+	@echo "Binary: $(BIN_DIR)/$(BINARY_NAME)"
+
+## install: Install to $GOPATH/bin
+install:
+	@echo "Installing $(BINARY_NAME)..."
+	$(GOCMD) install $(LDFLAGS) $(CMD_DIR)
+
+## test: Run tests
+test:
+	@echo "Running tests..."
+	$(GOTEST) -v ./...
+
+## test-cover: Run tests with coverage
+test-cover:
+	@echo "Running tests with coverage..."
+	$(GOTEST) -v -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+
+## lint: Run linter (requires golangci-lint)
+lint:
+	@echo "Running linter..."
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run; \
+	else \
+		echo "golangci-lint not installed. Install with:"; \
+		echo "  brew install golangci-lint"; \
+		echo "  or: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+		exit 1; \
+	fi
+
+## fmt: Format code
+fmt:
+	@echo "Formatting code..."
+	$(GOCMD) fmt ./...
+	@if command -v goimports >/dev/null 2>&1; then \
+		goimports -w .; \
+	fi
+
+## tidy: Tidy dependencies
+tidy:
+	@echo "Tidying dependencies..."
+	$(GOMOD) tidy
+
+## clean: Remove build artifacts
+clean:
+	@echo "Cleaning..."
+	rm -rf $(BIN_DIR)
+	rm -f coverage.out coverage.html
+
+## run: Build and run with args (use: make run ARGS="--help")
+run: build
+	$(BIN_DIR)/$(BINARY_NAME) $(ARGS)
+
+## dev: Build and run in debug mode
+dev: build
+	$(BIN_DIR)/$(BINARY_NAME) --debug $(ARGS)
+
+## help: Show this help
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
+
+# Cross-compilation targets
+## build-all: Build for all platforms
+build-all: build-darwin-arm64 build-darwin-amd64 build-linux-amd64 build-linux-arm64 build-windows-amd64
+
+build-darwin-arm64:
+	@echo "Building for macOS (arm64)..."
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_DIR)
+
+build-darwin-amd64:
+	@echo "Building for macOS (amd64)..."
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-darwin-amd64 $(CMD_DIR)
+
+build-linux-amd64:
+	@echo "Building for Linux (amd64)..."
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-linux-amd64 $(CMD_DIR)
+
+build-linux-arm64:
+	@echo "Building for Linux (arm64)..."
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_DIR)
+
+build-windows-amd64:
+	@echo "Building for Windows (amd64)..."
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME)-windows-amd64.exe $(CMD_DIR)
