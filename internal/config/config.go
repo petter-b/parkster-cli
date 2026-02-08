@@ -111,10 +111,10 @@ func (c *Config) Save(path string) error {
 // DefaultPath returns the default config file path
 func DefaultPath() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "mycli", "config.yaml")
+		return filepath.Join(xdg, "parkster", "config.yaml")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "mycli", "config.yaml")
+	return filepath.Join(home, ".config", "parkster", "config.yaml")
 }
 
 // GetServiceConfig returns config for a specific service with defaults

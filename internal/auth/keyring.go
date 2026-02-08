@@ -90,7 +90,7 @@ func (s *Store) List() ([]string, error) {
 // Priority: env var > keyring
 func GetCredential(service string) (string, error) {
 	// Check environment variable first
-	envKey := fmt.Sprintf("MYCLI_%s_API_KEY", strings.ToUpper(strings.ReplaceAll(service, "-", "_")))
+	envKey := fmt.Sprintf("PARKSTER_%s_API_KEY", strings.ToUpper(strings.ReplaceAll(service, "-", "_")))
 	if val := os.Getenv(envKey); val != "" {
 		return val, nil
 	}
@@ -98,12 +98,12 @@ func GetCredential(service string) (string, error) {
 	// Fall back to keyring
 	store, err := OpenKeyring()
 	if err != nil {
-		return "", fmt.Errorf("no credential for %s: set %s or run 'mycli auth add %s'", service, envKey, service)
+		return "", fmt.Errorf("no credential for %s: set %s or run 'parkster auth add %s'", service, envKey, service)
 	}
 
 	secret, err := store.Get(service)
 	if err != nil {
-		return "", fmt.Errorf("no credential for %s: set %s or run 'mycli auth add %s'", service, envKey, service)
+		return "", fmt.Errorf("no credential for %s: set %s or run 'parkster auth add %s'", service, envKey, service)
 	}
 
 	return secret, nil
