@@ -15,6 +15,15 @@ func TestUser_JSONUnmarshal(t *testing.T) {
 		],
 		"paymentAccounts": [
 			{"paymentAccountId": "pay_123"}
+		],
+		"shortTermParkings": [
+			{
+				"id": 999,
+				"parkingZone": {"id": 17429, "name": "Ericsson"},
+				"car": {"id": 67890, "licenseNbr": "ABC123"},
+				"status": "ACTIVE",
+				"timeout": 30
+			}
 		]
 	}`
 
@@ -44,6 +53,15 @@ func TestUser_JSONUnmarshal(t *testing.T) {
 	}
 	if user.PaymentAccounts[0].PaymentAccountID != "pay_123" {
 		t.Errorf("Expected payment ID pay_123, got %s", user.PaymentAccounts[0].PaymentAccountID)
+	}
+	if len(user.ShortTermParkings) != 1 {
+		t.Fatalf("Expected 1 short term parking, got %d", len(user.ShortTermParkings))
+	}
+	if user.ShortTermParkings[0].ID != 999 {
+		t.Errorf("Expected parking ID 999, got %d", user.ShortTermParkings[0].ID)
+	}
+	if user.ShortTermParkings[0].Status != "ACTIVE" {
+		t.Errorf("Expected parking status ACTIVE, got %s", user.ShortTermParkings[0].Status)
 	}
 }
 

@@ -2,11 +2,12 @@ package parkster
 
 // User represents a Parkster account
 type User struct {
-	ID              int              `json:"id"`
-	Email           string           `json:"email"`
-	AccountType     string           `json:"accountType"`
-	Cars            []Car            `json:"cars"`
-	PaymentAccounts []PaymentAccount `json:"paymentAccounts"`
+	ID                int              `json:"id"`
+	Email             string           `json:"email"`
+	AccountType       string           `json:"accountType"`
+	Cars              []Car            `json:"cars"`
+	PaymentAccounts   []PaymentAccount `json:"paymentAccounts"`
+	ShortTermParkings []Parking        `json:"shortTermParkings"`
 }
 
 // Car represents a registered vehicle

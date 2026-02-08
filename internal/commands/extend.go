@@ -45,10 +45,12 @@ func runExtend(cmd *cobra.Command, args []string) error {
 
 	debugLog("fetching active parkings")
 
-	parkings, err := client.GetActiveParkings()
+	user, err := client.Login()
 	if err != nil {
-		return fmt.Errorf("failed to get active parkings: %w", err)
+		return fmt.Errorf("failed to authenticate: %w", err)
 	}
+
+	parkings := user.ShortTermParkings
 
 	debugLog("found %d active parkings", len(parkings))
 

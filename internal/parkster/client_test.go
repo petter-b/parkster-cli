@@ -238,6 +238,9 @@ func TestLogin_Success(t *testing.T) {
 			AccountType: "PRIVATE",
 			Cars:        []Car{{ID: 67890, LicenseNbr: "ABC123", CountryCode: "SE"}},
 			PaymentAccounts: []PaymentAccount{{PaymentAccountID: "pay_123"}},
+			ShortTermParkings: []Parking{
+				{ID: 999, Status: "ACTIVE", Car: Car{LicenseNbr: "ABC123"}},
+			},
 		})
 	}))
 	defer server.Close()
@@ -258,6 +261,12 @@ func TestLogin_Success(t *testing.T) {
 	}
 	if user.Cars[0].LicenseNbr != "ABC123" {
 		t.Errorf("Expected license ABC123, got %s", user.Cars[0].LicenseNbr)
+	}
+	if len(user.ShortTermParkings) != 1 {
+		t.Fatalf("Expected 1 active parking, got %d", len(user.ShortTermParkings))
+	}
+	if user.ShortTermParkings[0].ID != 999 {
+		t.Errorf("Expected parking ID 999, got %d", user.ShortTermParkings[0].ID)
 	}
 }
 
