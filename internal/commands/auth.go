@@ -9,6 +9,7 @@ import (
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var authCmd = &cobra.Command{
@@ -122,9 +123,18 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// readSecretLine reads a line without echoing (basic version)
-// For production, use golang.org/x/term for proper terminal handling
+// readSecretLine reads a line without echoing the input to the terminal.
 func readSecretLine() (string, error) {
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		password, err := term.ReadPassword(fd)
+		fmt.Fprintln(os.Stderr) // newline after hidden input
+		if err != nil {
+			return "", err
+		}
+		return string(password), nil
+	}
+	// Non-terminal (piped input): read normally
 	reader := bufio.NewReader(os.Stdin)
 	line, err := reader.ReadString('\n')
 	if err != nil {
