@@ -48,7 +48,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&plainFlag, "plain", false, "Output as tab-separated values")
 
 	// Global credential flags
-	rootCmd.PersistentFlags().String("email", "", "Parkster account email")
+	rootCmd.PersistentFlags().String("username", "", "Parkster account username (email or phone number)")
 	rootCmd.PersistentFlags().String("password", "", "Parkster account password")
 
 	// Environment variable bindings

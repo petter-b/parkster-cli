@@ -75,18 +75,17 @@ parkster extend --minutes 30 --parking-id 123456
 
 Credentials are resolved in this order:
 
-1. CLI flags: `--email` and `--password`
-2. Environment variables: `PARKSTER_EMAIL` and `PARKSTER_PASSWORD`
+1. CLI flags: `--username` and `--password`
+2. Environment variables: `PARKSTER_USERNAME` and `PARKSTER_PASSWORD`
 3. OS keychain (stored via `parkster auth login`)
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `PARKSTER_EMAIL` | Account email |
+| `PARKSTER_USERNAME` | Account username (email or phone number) |
 | `PARKSTER_PASSWORD` | Account password |
 | `PARKSTER_DEBUG` | Enable debug output (`1` or `true`) |
-| `PARKSTER_FORMAT` | Default output format (`plain`/`json`/`tsv`) |
 
 ## Output Formats
 

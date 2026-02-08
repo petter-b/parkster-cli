@@ -14,18 +14,18 @@ const DefaultBaseURL = "https://api.parkster.se/api/mobile/v2"
 
 // Client is the Parkster API client
 type Client struct {
-	http    *http.Client
-	baseURL string
-	email   string
+	http     *http.Client
+	baseURL  string
+	username string
 	password string
 }
 
 // NewClient creates a new Parkster API client
-func NewClient(email, password string) *Client {
+func NewClient(username, password string) *Client {
 	return &Client{
 		http:     &http.Client{Timeout: 30 * time.Second},
 		baseURL:  DefaultBaseURL,
-		email:    email,
+		username: username,
 		password: password,
 	}
 }
@@ -57,7 +57,7 @@ func (c *Client) get(path string, extraParams url.Values) (*http.Response, error
 	}
 
 	// HTTP Basic Auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
+	auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
 	req.Header.Set("Authorization", "Basic "+auth)
 	req.Header.Set("Accept", "application/json")
 
@@ -82,7 +82,7 @@ func (c *Client) post(path string, data url.Values) (*http.Response, error) {
 	}
 
 	// HTTP Basic Auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
+	auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
 	req.Header.Set("Authorization", "Basic "+auth)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -107,7 +107,7 @@ func (c *Client) put(path string, data url.Values) (*http.Response, error) {
 	}
 
 	// HTTP Basic Auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
+	auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
 	req.Header.Set("Authorization", "Basic "+auth)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

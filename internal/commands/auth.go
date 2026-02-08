@@ -27,10 +27,10 @@ Environment variables take precedence over stored credentials.`,
 var authAddCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Store Parkster credentials",
-	Long: `Store Parkster email and password in OS keychain.
+	Long: `Store Parkster username and password in OS keychain.
 
 Examples:
-  parkster auth login     # Prompts for email and password
+  parkster auth login     # Prompts for username and password
 
 The credentials will be stored in your OS keychain.`,
 	Args: cobra.NoArgs,
@@ -57,16 +57,16 @@ func init() {
 }
 
 func runAuthAdd(cmd *cobra.Command, args []string) error {
-	fmt.Fprintf(os.Stderr, "Enter email: ")
+	fmt.Fprintf(os.Stderr, "Enter username (email or phone): ")
 	reader := bufio.NewReader(os.Stdin)
-	email, err := reader.ReadString('\n')
+	username, err := reader.ReadString('\n')
 	if err != nil {
-		return fmt.Errorf("failed to read email: %w", err)
+		return fmt.Errorf("failed to read username: %w", err)
 	}
-	email = strings.TrimSpace(email)
+	username = strings.TrimSpace(username)
 
-	if email == "" {
-		return fmt.Errorf("email cannot be empty")
+	if username == "" {
+		return fmt.Errorf("username cannot be empty")
 	}
 
 	fmt.Fprintf(os.Stderr, "Enter password: ")
@@ -79,11 +79,11 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("password cannot be empty")
 	}
 
-	if err := auth.SaveCredentials(email, password); err != nil {
+	if err := auth.SaveCredentials(username, password); err != nil {
 		return fmt.Errorf("failed to store credentials: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Credentials stored for %s\n", email)
+	fmt.Fprintf(os.Stderr, "Credentials stored for %s\n", username)
 	return nil
 }
 
@@ -99,10 +99,10 @@ func runAuthRemove(cmd *cobra.Command, args []string) error {
 func runAuthStatus(cmd *cobra.Command, args []string) error {
 	type authStatus struct {
 		Authenticated bool   `json:"authenticated"`
-		Email         string `json:"email,omitempty"`
+		Username      string `json:"username,omitempty"`
 	}
 
-	email, err := auth.GetEmail(nil)
+	username, err := auth.GetUsername(nil)
 	if err != nil {
 		status := authStatus{Authenticated: false}
 		mode := OutputMode()
@@ -113,12 +113,12 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	status := authStatus{Authenticated: true, Email: email}
+	status := authStatus{Authenticated: true, Username: username}
 	mode := OutputMode()
 	if mode == output.ModeJSON {
 		return output.PrintSuccess(status, mode)
 	}
-	fmt.Printf("Logged in as: %s\n", email)
+	fmt.Printf("Logged in as: %s\n", username)
 	return nil
 }
 

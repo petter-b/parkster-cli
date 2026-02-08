@@ -18,7 +18,7 @@ var startCmd = &cobra.Command{
 Examples:
   parkster start --zone 17429 --duration 30
   parkster start --zone 17429 --duration 30 --car ABC123
-  parkster start --zone 17429 --duration 30 --email user@example.com --password secret`,
+  parkster start --zone 17429 --duration 30 --username user@example.com --password secret`,
 	RunE: runStart,
 }
 
@@ -37,7 +37,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	carFlag, _ := cmd.Flags().GetString("car")
 	paymentFlag, _ := cmd.Flags().GetString("payment")
 
-	email, err := auth.GetEmail(cmd)
+	username, err := auth.GetUsername(cmd)
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}
@@ -46,9 +46,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("authentication required: %w", err)
 	}
 
-	client := parkster.NewClient(email, password)
+	client := parkster.NewClient(username, password)
 
-	debugLog("authenticating as %s", email)
+	debugLog("authenticating as %s", username)
 
 	user, err := client.Login()
 	if err != nil {

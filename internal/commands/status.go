@@ -25,7 +25,7 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	email, err := auth.GetEmail(cmd)
+	username, err := auth.GetUsername(cmd)
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}
@@ -34,7 +34,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("authentication required: %w", err)
 	}
 
-	client := parkster.NewClient(email, password)
+	client := parkster.NewClient(username, password)
 
 	debugLog("fetching active parkings")
 

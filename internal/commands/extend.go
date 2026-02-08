@@ -32,7 +32,7 @@ func runExtend(cmd *cobra.Command, args []string) error {
 	minutes, _ := cmd.Flags().GetInt("minutes")
 	parkingIDFlag, _ := cmd.Flags().GetInt("parking-id")
 
-	email, err := auth.GetEmail(cmd)
+	username, err := auth.GetUsername(cmd)
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}
@@ -41,7 +41,7 @@ func runExtend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("authentication required: %w", err)
 	}
 
-	client := parkster.NewClient(email, password)
+	client := parkster.NewClient(username, password)
 
 	debugLog("fetching active parkings")
 
