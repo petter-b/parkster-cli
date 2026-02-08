@@ -32,5 +32,9 @@ flows
 flows.*
 *.mitm
 
+# Coverage
+coverage.out
+coverage.html
+
 # Temporary/unknown files
 -
