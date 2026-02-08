@@ -37,12 +37,6 @@ The credentials will be stored in your OS keychain.`,
 	RunE: runAuthAdd,
 }
 
-var authListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List configured credentials",
-	RunE:  runAuthList,
-}
-
 var authRemoveCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Remove Parkster credentials",
@@ -59,7 +53,7 @@ var authStatusCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(authCmd)
-	authCmd.AddCommand(authAddCmd, authListCmd, authRemoveCmd, authStatusCmd)
+	authCmd.AddCommand(authAddCmd, authRemoveCmd, authStatusCmd)
 }
 
 func runAuthAdd(cmd *cobra.Command, args []string) error {
@@ -91,20 +85,6 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stderr, "Credentials stored for %s\n", email)
 	return nil
-}
-
-func runAuthList(cmd *cobra.Command, args []string) error {
-	email, err := auth.GetEmail(nil)
-	if err != nil {
-		mode := OutputMode()
-		if mode == output.ModeJSON {
-			return output.PrintSuccess([]any{}, mode)
-		}
-		fmt.Println("No credentials configured. Use 'parkster auth login' to add credentials.")
-		return nil
-	}
-
-	return output.PrintSuccess(map[string]string{"email": email}, OutputMode())
 }
 
 func runAuthRemove(cmd *cobra.Command, args []string) error {
