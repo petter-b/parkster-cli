@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/yourorg/mycli/internal/config"
+	"github.com/petter-b/parkster-cli/internal/config"
 )
 
 var (

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/yourorg/mycli/internal/commands"
+	"github.com/petter-b/parkster-cli/internal/commands"
 )
 
 func main() {

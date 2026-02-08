@@ -1,4 +1,4 @@
-module github.com/yourorg/mycli
+module github.com/petter-b/parkster-cli
 
 go 1.22
 

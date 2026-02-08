@@ -1,13 +1,13 @@
 .PHONY: build test lint fmt clean install help
 
 # Variables
-BINARY_NAME := mycli
+BINARY_NAME := parkster
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -ldflags "-X github.com/yourorg/mycli/internal/commands.Version=$(VERSION) \
-                     -X github.com/yourorg/mycli/internal/commands.Commit=$(COMMIT) \
-                     -X github.com/yourorg/mycli/internal/commands.BuildDate=$(BUILD_DATE)"
+LDFLAGS := -ldflags "-X github.com/petter-b/parkster-cli/internal/commands.Version=$(VERSION) \
+                     -X github.com/petter-b/parkster-cli/internal/commands.Commit=$(COMMIT) \
+                     -X github.com/petter-b/parkster-cli/internal/commands.BuildDate=$(BUILD_DATE)"
 
 # Go commands
 GOCMD := go
@@ -18,7 +18,7 @@ GOMOD := $(GOCMD) mod
 
 # Directories
 BIN_DIR := ./bin
-CMD_DIR := ./cmd/mycli
+CMD_DIR := ./cmd/parkster
 
 # Default target
 all: build

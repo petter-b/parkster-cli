@@ -1,5 +1,12 @@
 # Parkster CLI Development Guide
 
+## Project Configuration
+
+- **GitHub Username**: `petter-b`
+- **Module Path**: `github.com/petter-b/parkster-cli`
+- **Repository**: Private (planned to be made public later)
+- **Binary Name**: `parkster`
+
 **This project uses the CLI template from `../cli-template`. Read that file first for:**
 - General CLI patterns (commands, errors, output, auth)
 - KISS/YAGNI principles

@@ -1,55 +1,55 @@
-# mycli
+# Parkster CLI
 
-A CLI tool template following patterns from [steipete's CLI ecosystem](https://github.com/steipete).
+A command-line tool for managing Parkster parking sessions.
 
 ## Features
 
 - **Secure credential storage** via OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager)
 - **OAuth2 browser flow** for services requiring it
 - **JSON output** for scripting and AI agent integration
-- **XDG-compliant** configuration (`~/.config/mycli/`)
+- **XDG-compliant** configuration (`~/.config/parkster/`)
 
 ## Install
 
 ```bash
 # From source
-go install github.com/yourorg/mycli/cmd/mycli@latest
+go install github.com/yourorg/parkster/cmd/parkster@latest
 
 # Or build locally
 make build
-./bin/mycli --help
+./bin/parkster --help
 ```
 
 ## Quick Start
 
 ```bash
 # Add API credentials
-mycli auth add myservice
+parkster auth add myservice
 # Enter API key when prompted
 
 # Or set via environment variable
-export MYCLI_MYSERVICE_API_KEY=sk-xxx
+export PARKSTER_MYSERVICE_API_KEY=sk-xxx
 ```
 
 ## Usage
 
 ```bash
 # Show help
-mycli --help
+parkster --help
 
 # List configured services
-mycli auth list
+parkster auth list
 
 # Check auth status
-mycli auth status
+parkster auth status
 
 # JSON output for scripting
-mycli auth list --format json
+parkster auth list --format json
 ```
 
 ## Configuration
 
-Config file: `~/.config/mycli/config.yaml`
+Config file: `~/.config/parkster/config.yaml`
 
 ```yaml
 output_format: plain  # plain, json, tsv
@@ -67,9 +67,9 @@ services:
 
 | Variable | Description |
 |----------|-------------|
-| `MYCLI_FORMAT` | Default output format (plain/json/tsv) |
-| `MYCLI_DEBUG` | Enable debug output (1/true) |
-| `MYCLI_<SERVICE>_API_KEY` | API key for a service |
+| `PARKSTER_FORMAT` | Default output format (plain/json/tsv) |
+| `PARKSTER_DEBUG` | Enable debug output (1/true) |
+| `PARKSTER_<SERVICE>_API_KEY` | API key for a service |
 
 ## Development
 
