@@ -97,7 +97,7 @@ func TestGet_BasicAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -142,7 +142,7 @@ func TestPost_FormEncoded(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -159,7 +159,7 @@ func TestPost_FormEncoded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -208,7 +208,7 @@ func TestPut_FormEncoded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PUT request failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -233,11 +233,11 @@ func TestLogin_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(User{
-			ID:          12345,
-			Email:       "test@example.com",
-			AccountType: "PRIVATE",
-			Cars:        []Car{{ID: 67890, LicenseNbr: "ABC123", CountryCode: "SE"}},
+		_ = json.NewEncoder(w).Encode(User{
+			ID:              12345,
+			Email:           "test@example.com",
+			AccountType:     "PRIVATE",
+			Cars:            []Car{{ID: 67890, LicenseNbr: "ABC123", CountryCode: "SE"}},
 			PaymentAccounts: []PaymentAccount{{PaymentAccountID: "pay_123"}},
 			ShortTermParkings: []Parking{
 				{ID: 999, Status: "ACTIVE", Car: Car{LicenseNbr: "ABC123"}},
@@ -294,7 +294,7 @@ func TestGetActiveParkings_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]Parking{
+		_ = json.NewEncoder(w).Encode([]Parking{
 			{ID: 111, Status: "ACTIVE", Car: Car{LicenseNbr: "ABC123"}},
 			{ID: 222, Status: "ACTIVE", Car: Car{LicenseNbr: "DEF456"}},
 		})
@@ -317,7 +317,7 @@ func TestGetActiveParkings_Success(t *testing.T) {
 func TestGetActiveParkings_Empty(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]Parking{})
+		_ = json.NewEncoder(w).Encode([]Parking{})
 	}))
 	defer server.Close()
 
@@ -338,7 +338,7 @@ func TestGetZone_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Zone{
+		_ = json.NewEncoder(w).Encode(Zone{
 			ID:   17429,
 			Name: "Ericsson Kista",
 			FeeZone: FeeZone{
@@ -411,7 +411,7 @@ func TestStartParking_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Parking{
+		_ = json.NewEncoder(w).Encode(Parking{
 			ID:     123456,
 			Status: "ACTIVE",
 			Car:    Car{ID: 67890, LicenseNbr: "ABC123"},
@@ -458,7 +458,7 @@ func TestStopParking_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Parking{
+		_ = json.NewEncoder(w).Encode(Parking{
 			ID:     123456,
 			Status: "COMPLETED",
 			Cost:   15.50,
@@ -513,7 +513,7 @@ func TestExtendParking_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Parking{
+		_ = json.NewEncoder(w).Encode(Parking{
 			ID:      123456,
 			Status:  "ACTIVE",
 			Timeout: 60,

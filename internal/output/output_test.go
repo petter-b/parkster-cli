@@ -16,11 +16,11 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	fn()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	return buf.String()
 }
 
@@ -65,7 +65,7 @@ func TestPrintSuccess_JSON_Envelope(t *testing.T) {
 	item := testItem{ID: 1, Name: "test"}
 
 	out := captureStdout(t, func() {
-		PrintSuccess(item, ModeJSON)
+		_ = PrintSuccess(item, ModeJSON)
 	})
 
 	var envelope Envelope
@@ -86,7 +86,7 @@ func TestPrintSuccess_JSON_Envelope(t *testing.T) {
 
 func TestPrintSuccess_JSON_NilData(t *testing.T) {
 	out := captureStdout(t, func() {
-		PrintSuccess(nil, ModeJSON)
+		_ = PrintSuccess(nil, ModeJSON)
 	})
 
 	var envelope Envelope
@@ -102,7 +102,7 @@ func TestPrintSuccess_JSON_Slice(t *testing.T) {
 	items := []testItem{{ID: 1, Name: "a"}, {ID: 2, Name: "b"}}
 
 	out := captureStdout(t, func() {
-		PrintSuccess(items, ModeJSON)
+		_ = PrintSuccess(items, ModeJSON)
 	})
 
 	var envelope Envelope
@@ -147,7 +147,7 @@ func TestPrintSuccess_Human_Struct(t *testing.T) {
 	item := testItem{ID: 42, Name: "hello"}
 
 	out := captureStdout(t, func() {
-		PrintSuccess(item, ModeHuman)
+		_ = PrintSuccess(item, ModeHuman)
 	})
 
 	// Human mode should print field: value lines
@@ -160,7 +160,7 @@ func TestPrintSuccess_Plain_Struct(t *testing.T) {
 	item := testItem{ID: 42, Name: "hello"}
 
 	out := captureStdout(t, func() {
-		PrintSuccess(item, ModePlain)
+		_ = PrintSuccess(item, ModePlain)
 	})
 
 	// Plain/TSV mode should produce tab-separated values

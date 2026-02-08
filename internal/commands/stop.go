@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
+	"github.com/spf13/cobra"
 )
 
 var stopCmd = &cobra.Command{
@@ -69,8 +69,8 @@ func runStop(cmd *cobra.Command, args []string) error {
 	} else if len(parkings) == 1 {
 		parkingID = parkings[0].ID
 	} else {
-		output.PrintSuccess(parkings, OutputMode())
-		return fmt.Errorf("multiple active parkings found. Use --parking-id flag to specify")
+		_ = output.PrintSuccess(parkings, OutputMode())
+		return fmt.Errorf("multiple active parkings found, use --parking-id flag to specify")
 	}
 
 	debugLog("stopping parking session %d", parkingID)

@@ -14,9 +14,6 @@ var (
 	debug     bool
 	jsonFlag  bool
 	plainFlag bool
-
-	// Config
-	cfg *config.Config
 )
 
 var rootCmd = &cobra.Command{
@@ -32,11 +29,9 @@ Features:
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-		cfg, err = config.Load("")
+		_, err := config.Load("")
 		if err != nil {
 			debugLog("config load warning: %v", err)
-			cfg = config.Default()
 		}
 		return nil
 	},

@@ -28,7 +28,7 @@ type Config struct {
 
 // ServiceConfig holds per-service configuration
 type ServiceConfig struct {
-	BaseURL string `yaml:"base_url,omitempty"`
+	BaseURL string   `yaml:"base_url,omitempty"`
 	Timeout Duration `yaml:"timeout,omitempty"`
 }
 

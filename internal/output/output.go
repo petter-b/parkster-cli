@@ -52,7 +52,7 @@ func PrintSuccess(data any, mode Mode) error {
 func PrintError(msg string, mode Mode) {
 	switch mode {
 	case ModeJSON:
-		printJSONEnvelope(false, nil, msg)
+		_ = printJSONEnvelope(false, nil, msg)
 	default:
 		fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
 	}

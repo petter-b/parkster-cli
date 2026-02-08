@@ -44,10 +44,8 @@ func (c *Client) deviceParams() url.Values {
 // get makes a GET request with device params in query string
 func (c *Client) get(path string, extraParams url.Values) (*http.Response, error) {
 	params := c.deviceParams()
-	if extraParams != nil {
-		for k, v := range extraParams {
-			params[k] = v
-		}
+	for k, v := range extraParams {
+		params[k] = v
 	}
 
 	reqURL := fmt.Sprintf("%s%s?%s", c.baseURL, path, params.Encode())
@@ -120,7 +118,7 @@ func (c *Client) Login() (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("authentication failed (status %d)", resp.StatusCode)
@@ -140,7 +138,7 @@ func (c *Client) GetActiveParkings() ([]Parking, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("request failed (status %d)", resp.StatusCode)
@@ -161,7 +159,7 @@ func (c *Client) GetZone(zoneID int) (*Zone, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("zone not found (status %d)", resp.StatusCode)
@@ -188,7 +186,7 @@ func (c *Client) StartParking(zoneID, feeZoneID, carID int, paymentID string, ti
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to start parking (status %d)", resp.StatusCode)
@@ -209,7 +207,7 @@ func (c *Client) StopParking(parkingID int) (*Parking, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to stop parking (status %d)", resp.StatusCode)
@@ -234,7 +232,7 @@ func (c *Client) ExtendParking(parkingID, minutes int) (*Parking, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to extend parking (status %d)", resp.StatusCode)

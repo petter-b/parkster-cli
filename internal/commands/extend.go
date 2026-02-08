@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
+	"github.com/spf13/cobra"
 )
 
 var extendCmd = &cobra.Command{
@@ -25,7 +25,7 @@ func init() {
 	rootCmd.AddCommand(extendCmd)
 	extendCmd.Flags().Int("minutes", 0, "Minutes to add (required)")
 	extendCmd.Flags().Int("parking-id", 0, "Parking session ID (auto-selects if only one active)")
-	extendCmd.MarkFlagRequired("minutes")
+	_ = extendCmd.MarkFlagRequired("minutes")
 }
 
 func runExtend(cmd *cobra.Command, args []string) error {
@@ -72,8 +72,8 @@ func runExtend(cmd *cobra.Command, args []string) error {
 	} else if len(parkings) == 1 {
 		parkingID = parkings[0].ID
 	} else {
-		output.PrintSuccess(parkings, OutputMode())
-		return fmt.Errorf("multiple active parkings found. Use --parking-id flag to specify")
+		_ = output.PrintSuccess(parkings, OutputMode())
+		return fmt.Errorf("multiple active parkings found, use --parking-id flag to specify")
 	}
 
 	debugLog("extending parking session %d by %d minutes", parkingID, minutes)

@@ -49,14 +49,14 @@ func executeCommand(args ...string) (stdout string, stderr string, err error) {
 	rootCmd.SetArgs(args)
 	err = rootCmd.Execute()
 
-	wOut.Close()
-	wErr.Close()
+	_ = wOut.Close()
+	_ = wErr.Close()
 	os.Stdout = oldStdout
 	os.Stderr = oldStderr
 
 	var bufOut, bufErr bytes.Buffer
-	bufOut.ReadFrom(rOut)
-	bufErr.ReadFrom(rErr)
+	_, _ = bufOut.ReadFrom(rOut)
+	_, _ = bufErr.ReadFrom(rErr)
 
 	return bufOut.String(), bufErr.String(), err
 }

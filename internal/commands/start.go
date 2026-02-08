@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
+	"github.com/spf13/cobra"
 )
 
 var startCmd = &cobra.Command{
@@ -28,7 +28,7 @@ func init() {
 	startCmd.Flags().Int("duration", 30, "Parking duration in minutes")
 	startCmd.Flags().String("car", "", "License plate (auto-selects if only one car)")
 	startCmd.Flags().String("payment", "", "Payment account ID (auto-selects if only one)")
-	startCmd.MarkFlagRequired("zone")
+	_ = startCmd.MarkFlagRequired("zone")
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
@@ -72,10 +72,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else if len(user.Cars) == 1 {
 		selectedCar = &user.Cars[0]
 	} else if len(user.Cars) == 0 {
-		return fmt.Errorf("no cars registered. Add a car first.")
+		return fmt.Errorf("no cars registered, add a car first")
 	} else {
-		output.PrintSuccess(user.Cars, OutputMode())
-		return fmt.Errorf("multiple cars found. Use --car flag to specify license plate")
+		_ = output.PrintSuccess(user.Cars, OutputMode())
+		return fmt.Errorf("multiple cars found, use --car flag to specify license plate")
 	}
 
 	debugLog("selected car: %s", selectedCar.LicenseNbr)
@@ -95,10 +95,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else if len(user.PaymentAccounts) == 1 {
 		selectedPayment = &user.PaymentAccounts[0]
 	} else if len(user.PaymentAccounts) == 0 {
-		return fmt.Errorf("no payment methods configured. Add a payment method first.")
+		return fmt.Errorf("no payment methods configured, add a payment method first")
 	} else {
-		output.PrintSuccess(user.PaymentAccounts, OutputMode())
-		return fmt.Errorf("multiple payment accounts found. Use --payment flag to specify payment account ID")
+		_ = output.PrintSuccess(user.PaymentAccounts, OutputMode())
+		return fmt.Errorf("multiple payment accounts found, use --payment flag to specify payment account ID")
 	}
 
 	debugLog("selected payment: %s", selectedPayment.PaymentAccountID)
