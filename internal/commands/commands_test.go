@@ -1091,3 +1091,149 @@ func TestZonesSearch_CustomRadius(t *testing.T) {
 		t.Fatalf("expected success with custom radius, got: %v", err)
 	}
 }
+
+// --- Zones info command tests ---
+
+func TestZonesInfo_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{
+			ID:       80500,
+			Name:     "Ericsson Kista",
+			ZoneCode: "80500",
+			City:     parkster.City{Name: "Stockholm"},
+			FeeZone: parkster.FeeZone{
+				ID:       27545,
+				Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+				ParkingFees: []parkster.ParkingFee{
+					{AmountPerHour: 10.0, Description: "Weekdays 8-18", StartTime: 480, EndTime: 1080},
+				},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code in output, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "10") || !strings.Contains(stdout, "kr") {
+		t.Errorf("expected pricing info in output, got: %q", stdout)
+	}
+}
+
+func TestZonesInfo_Success_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{
+			ID:       80500,
+			Name:     "Ericsson Kista",
+			ZoneCode: "80500",
+			City:     parkster.City{Name: "Stockholm"},
+			FeeZone: parkster.FeeZone{
+				ID:       27545,
+				Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got parse error: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true in JSON envelope")
+	}
+	dataBytes, _ := json.Marshal(envelope.Data)
+	if !strings.Contains(string(dataBytes), "80500") {
+		t.Error("expected zone data in JSON output")
+	}
+}
+
+func TestZonesInfo_Success_Plain(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{
+			ID:       80500,
+			Name:     "Ericsson Kista",
+			ZoneCode: "80500",
+			City:     parkster.City{Name: "Stockholm"},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone data in plain output, got: %q", stdout)
+	}
+}
+
+func TestZonesInfo_MissingLatLon_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("zones", "info", "80500")
+	if err == nil {
+		t.Fatal("expected error for missing --lat/--lon, got nil")
+	}
+	if !strings.Contains(err.Error(), "lat") || !strings.Contains(err.Error(), "lon") {
+		t.Errorf("expected error about lat/lon required, got: %v", err)
+	}
+}
+
+func TestZonesInfo_MissingArg_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "info")
+	if err == nil {
+		t.Fatal("expected error for missing zone code argument, got nil")
+	}
+}
+
+func TestZonesInfo_NotFound_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		getZoneByCodeErr: errors.New("zone not found"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "info", "99999", "--lat", "59.373", "--lon", "17.893")
+	if err == nil {
+		t.Fatal("expected error when zone not found, got nil")
+	}
+	if !strings.Contains(err.Error(), "zone") {
+		t.Errorf("expected 'zone' in error message, got: %v", err)
+	}
+}
+
+func TestZonesInfo_AuthFails_Error(t *testing.T) {
+	// When no env vars are set, auth.GetUsername(nil) falls through to keyring
+	// which can block on macOS waiting for Keychain access prompt.
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping: macOS Keychain may block in test environment")
+	}
+
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893")
+	if err == nil {
+		t.Fatal("expected auth error, got nil")
+	}
+	if !strings.Contains(err.Error(), "authentication") {
+		t.Errorf("expected 'authentication' in error, got: %v", err)
+	}
+}

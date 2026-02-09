@@ -27,9 +27,25 @@ Examples:
 	RunE: runZonesSearch,
 }
 
+var zonesInfoCmd = &cobra.Command{
+	Use:   "info <zone-code>",
+	Short: "Show details for a parking zone by sign code",
+	Long: `Look up a parking zone by its sign code and show pricing, hours, and location.
+
+Requires --lat and --lon flags because the API uses location-based search
+to resolve sign codes.
+
+Examples:
+  parkster zones info 80500 --lat 59.373 --lon 17.893
+  parkster zones info 100028 --lat 52.52 --lon 13.40 --json`,
+	Args: cobra.ExactArgs(1),
+	RunE: runZonesInfo,
+}
+
 func init() {
 	rootCmd.AddCommand(zonesCmd)
 	zonesCmd.AddCommand(zonesSearchCmd)
+	zonesCmd.AddCommand(zonesInfoCmd)
 
 	// Flags for zones search
 	zonesSearchCmd.Flags().Float64("lat", 0, "Latitude (required)")
@@ -37,6 +53,12 @@ func init() {
 	zonesSearchCmd.Flags().Int("radius", 250, "Search radius in meters")
 	_ = zonesSearchCmd.MarkFlagRequired("lat")
 	_ = zonesSearchCmd.MarkFlagRequired("lon")
+
+	// Flags for zones info
+	zonesInfoCmd.Flags().Float64("lat", 0, "Latitude (required)")
+	zonesInfoCmd.Flags().Float64("lon", 0, "Longitude (required)")
+	_ = zonesInfoCmd.MarkFlagRequired("lat")
+	_ = zonesInfoCmd.MarkFlagRequired("lon")
 }
 
 func runZonesSearch(cmd *cobra.Command, args []string) error {
@@ -86,4 +108,38 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 	}
 
 	return output.PrintSuccess(allZones, OutputMode())
+}
+
+func runZonesInfo(cmd *cobra.Command, args []string) error {
+	zoneCode := args[0]
+	lat, _ := cmd.Flags().GetFloat64("lat")
+	lon, _ := cmd.Flags().GetFloat64("lon")
+
+	// Validate that lat/lon are provided
+	if lat == 0 || lon == 0 {
+		return fmt.Errorf("zone code lookup requires --lat and --lon flags to search nearby zones")
+	}
+
+	// Auth
+	username, err := auth.GetUsername(cmd)
+	if err != nil {
+		return fmt.Errorf("authentication required: %w", err)
+	}
+	password, err := auth.GetPassword(cmd)
+	if err != nil {
+		return fmt.Errorf("authentication required: %w", err)
+	}
+
+	client := newAPIClient(username, password)
+
+	debugLog("looking up zone code %q near %.6f,%.6f", zoneCode, lat, lon)
+
+	zone, err := client.GetZoneByCode(zoneCode, lat, lon)
+	if err != nil {
+		return fmt.Errorf("zone lookup failed: %w", err)
+	}
+
+	debugLog("found zone %d: %s", zone.ID, zone.Name)
+
+	return output.PrintSuccess(zone, OutputMode())
 }
