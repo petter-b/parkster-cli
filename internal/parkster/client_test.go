@@ -549,3 +549,197 @@ func TestExtendParking_Error(t *testing.T) {
 		t.Errorf("Expected 'failed to extend parking' in error, got: %s", err.Error())
 	}
 }
+
+// --- Zone search API method tests (Task 2) ---
+
+func TestSearchZones_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/parking-zones/location-search" {
+			t.Errorf("Expected path /parking-zones/location-search, got %s", r.URL.Path)
+		}
+
+		// Verify query parameters
+		query := r.URL.Query()
+		if query.Get("searchLat") != "59.404833" {
+			t.Errorf("Expected searchLat=59.404833, got %s", query.Get("searchLat"))
+		}
+		if query.Get("searchLong") != "17.953333" {
+			t.Errorf("Expected searchLong=17.953333, got %s", query.Get("searchLong"))
+		}
+		if query.Get("userLat") != "59.404833" {
+			t.Errorf("Expected userLat=59.404833, got %s", query.Get("userLat"))
+		}
+		if query.Get("userLong") != "17.953333" {
+			t.Errorf("Expected userLong=17.953333, got %s", query.Get("userLong"))
+		}
+		if query.Get("radius") != "1000" {
+			t.Errorf("Expected radius=1000, got %s", query.Get("radius"))
+		}
+		// Verify device params
+		if query.Get("platform") != "ios" {
+			t.Errorf("Expected platform=ios, got %s", query.Get("platform"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SearchResult{
+			ParkingZonesAtPosition: []ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", City: City{Name: "Stockholm"}},
+			},
+			ParkingZonesNearbyPosition: []ZoneSearchItem{
+				{ID: 7713, Name: "Berlin Zone", ZoneCode: "100028", City: City{Name: "Berlin"}, Distance: 150},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.SearchZones(59.404833, 17.953333, 1000)
+	if err != nil {
+		t.Fatalf("SearchZones failed: %v", err)
+	}
+	if len(result.ParkingZonesAtPosition) != 1 {
+		t.Errorf("Expected 1 zone at position, got %d", len(result.ParkingZonesAtPosition))
+	}
+	if result.ParkingZonesAtPosition[0].ZoneCode != "80500" {
+		t.Errorf("Expected zone code 80500, got %s", result.ParkingZonesAtPosition[0].ZoneCode)
+	}
+	if len(result.ParkingZonesNearbyPosition) != 1 {
+		t.Errorf("Expected 1 zone nearby, got %d", len(result.ParkingZonesNearbyPosition))
+	}
+	if result.ParkingZonesNearbyPosition[0].Distance != 150 {
+		t.Errorf("Expected distance 150, got %d", result.ParkingZonesNearbyPosition[0].Distance)
+	}
+}
+
+func TestSearchZones_EmptyResults(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(SearchResult{
+			ParkingZonesAtPosition:     []ZoneSearchItem{},
+			ParkingZonesNearbyPosition: []ZoneSearchItem{},
+		})
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.SearchZones(59.0, 18.0, 1000)
+	if err != nil {
+		t.Fatalf("SearchZones failed: %v", err)
+	}
+	if len(result.ParkingZonesAtPosition) != 0 {
+		t.Errorf("Expected 0 zones at position, got %d", len(result.ParkingZonesAtPosition))
+	}
+	if len(result.ParkingZonesNearbyPosition) != 0 {
+		t.Errorf("Expected 0 zones nearby, got %d", len(result.ParkingZonesNearbyPosition))
+	}
+}
+
+func TestSearchZones_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.SearchZones(59.0, 18.0, 1000)
+	if err == nil {
+		t.Fatal("Expected error for 500 response")
+	}
+	if !strings.Contains(err.Error(), "search failed") {
+		t.Errorf("Expected 'search failed' in error, got: %s", err.Error())
+	}
+}
+
+func TestGetZoneByCode_Success(t *testing.T) {
+	// Need to handle two different endpoints
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/parking-zones/location-search":
+			// Return search results with zone code 80500
+			_ = json.NewEncoder(w).Encode(SearchResult{
+				ParkingZonesAtPosition: []ZoneSearchItem{
+					{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", City: City{Name: "Stockholm"}},
+				},
+				ParkingZonesNearbyPosition: []ZoneSearchItem{},
+			})
+		case "/parking-zones/17429":
+			// Return full zone details
+			_ = json.NewEncoder(w).Encode(Zone{
+				ID:       17429,
+				Name:     "Ericsson Kista",
+				ZoneCode: "80500",
+				City:     City{Name: "Stockholm"},
+				FeeZone: FeeZone{
+					ID:       27545,
+					Currency: Currency{Code: "SEK", Symbol: "kr"},
+					ParkingFees: []ParkingFee{
+						{AmountPerHour: 10.0, Description: "Mon-Fri", StartTime: 480, EndTime: 1080},
+					},
+				},
+			})
+		default:
+			t.Errorf("Unexpected path: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	zone, err := client.GetZoneByCode("80500", 59.404833, 17.953333)
+	if err != nil {
+		t.Fatalf("GetZoneByCode failed: %v", err)
+	}
+	if zone.ID != 17429 {
+		t.Errorf("Expected zone ID 17429, got %d", zone.ID)
+	}
+	if zone.ZoneCode != "80500" {
+		t.Errorf("Expected zone code 80500, got %s", zone.ZoneCode)
+	}
+	if zone.FeeZone.ID != 27545 {
+		t.Errorf("Expected fee zone ID 27545, got %d", zone.FeeZone.ID)
+	}
+	if len(zone.FeeZone.ParkingFees) != 1 {
+		t.Errorf("Expected 1 parking fee, got %d", len(zone.FeeZone.ParkingFees))
+	}
+}
+
+func TestGetZoneByCode_NotFound(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Return search results without matching code
+		_ = json.NewEncoder(w).Encode(SearchResult{
+			ParkingZonesAtPosition: []ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500"},
+			},
+			ParkingZonesNearbyPosition: []ZoneSearchItem{},
+		})
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetZoneByCode("99999", 59.404833, 17.953333)
+	if err == nil {
+		t.Fatal("Expected error when zone code not found")
+	}
+	if !strings.Contains(err.Error(), "zone code") {
+		t.Errorf("Expected 'zone code' in error, got: %s", err.Error())
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' in error, got: %s", err.Error())
+	}
+}
+
+func TestGetZoneByCode_SearchFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetZoneByCode("80500", 59.404833, 17.953333)
+	if err == nil {
+		t.Fatal("Expected error when search fails")
+	}
+}

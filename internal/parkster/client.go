@@ -16,6 +16,8 @@ const DefaultBaseURL = "https://api.parkster.se/api/mobile/v2"
 type API interface {
 	Login() (*User, error)
 	GetZone(zoneID int) (*Zone, error)
+	SearchZones(lat, lon float64, radius int) (*SearchResult, error)
+	GetZoneByCode(code string, lat, lon float64) (*Zone, error)
 	StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)
 	StopParking(parkingID int) (*Parking, error)
 	ExtendParking(parkingID, minutes int) (*Parking, error)
@@ -180,6 +182,53 @@ func (c *Client) GetZone(zoneID int) (*Zone, error) {
 	}
 
 	return &zone, nil
+}
+
+// SearchZones searches for parking zones by location
+func (c *Client) SearchZones(lat, lon float64, radius int) (*SearchResult, error) {
+	params := url.Values{}
+	params.Set("searchLat", fmt.Sprintf("%.6f", lat))
+	params.Set("searchLong", fmt.Sprintf("%.6f", lon))
+	params.Set("userLat", fmt.Sprintf("%.6f", lat))
+	params.Set("userLong", fmt.Sprintf("%.6f", lon))
+	params.Set("radius", fmt.Sprintf("%d", radius))
+
+	resp, err := c.get("/parking-zones/location-search", params)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("search failed (status %d)", resp.StatusCode)
+	}
+
+	var result SearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetZoneByCode searches for a zone by sign code near a location
+func (c *Client) GetZoneByCode(code string, lat, lon float64) (*Zone, error) {
+	// Search with 5km radius for code lookup
+	result, err := c.SearchZones(lat, lon, 5000)
+	if err != nil {
+		return nil, fmt.Errorf("zone search failed: %w", err)
+	}
+
+	// Search both arrays for matching code
+	allZones := append(result.ParkingZonesAtPosition, result.ParkingZonesNearbyPosition...)
+	for _, z := range allZones {
+		if z.ZoneCode == code {
+			// Fetch full details (includes feeZone with pricing)
+			return c.GetZone(z.ID)
+		}
+	}
+
+	return nil, fmt.Errorf("zone code %q not found near %.4f,%.4f", code, lat, lon)
 }
 
 // StartParking starts a new parking session

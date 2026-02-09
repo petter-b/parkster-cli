@@ -256,6 +256,16 @@ func (m *mockAPI) ExtendParking(_, _ int) (*parkster.Parking, error) {
 	return m.extendResp, m.extendErr
 }
 
+func (m *mockAPI) SearchZones(_, _ float64, _ int) (*parkster.SearchResult, error) {
+	// Not used by current commands - return empty result
+	return &parkster.SearchResult{}, nil
+}
+
+func (m *mockAPI) GetZoneByCode(_ string, _, _ float64) (*parkster.Zone, error) {
+	// Not used by current commands - return nil error
+	return nil, nil
+}
+
 // withMockClient swaps the global newAPIClient factory with one that returns
 // the given mock, and restores the original factory when the test finishes.
 func withMockClient(t *testing.T, m *mockAPI) {
