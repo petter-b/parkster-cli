@@ -3,11 +3,14 @@ package commands
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/petter-b/parkster-cli/internal/output"
+	"github.com/petter-b/parkster-cli/internal/parkster"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -215,5 +218,688 @@ func TestOutputMode_Plain(t *testing.T) {
 	plainFlag = true
 	if OutputMode() != output.ModePlain {
 		t.Error("OutputMode should return ModePlain when plainFlag is set")
+	}
+}
+
+// --- Mock API client ---
+
+type mockAPI struct {
+	loginResp        *parkster.User
+	loginErr         error
+	getZoneResp      *parkster.Zone
+	getZoneErr       error
+	startParkingResp *parkster.Parking
+	startParkingErr  error
+	stopParkingResp  *parkster.Parking
+	stopParkingErr   error
+	extendResp       *parkster.Parking
+	extendErr        error
+}
+
+func (m *mockAPI) Login() (*parkster.User, error) {
+	return m.loginResp, m.loginErr
+}
+
+func (m *mockAPI) GetZone(_ int) (*parkster.Zone, error) {
+	return m.getZoneResp, m.getZoneErr
+}
+
+func (m *mockAPI) StartParking(_, _, _ int, _ string, _ int) (*parkster.Parking, error) {
+	return m.startParkingResp, m.startParkingErr
+}
+
+func (m *mockAPI) StopParking(_ int) (*parkster.Parking, error) {
+	return m.stopParkingResp, m.stopParkingErr
+}
+
+func (m *mockAPI) ExtendParking(_, _ int) (*parkster.Parking, error) {
+	return m.extendResp, m.extendErr
+}
+
+// withMockClient swaps the global newAPIClient factory with one that returns
+// the given mock, and restores the original factory when the test finishes.
+func withMockClient(t *testing.T, m *mockAPI) {
+	t.Helper()
+	orig := newAPIClient
+	newAPIClient = func(_, _ string) parkster.API { return m }
+	t.Cleanup(func() { newAPIClient = orig })
+}
+
+// setAuth sets the environment variables for authentication.
+func setAuth(t *testing.T) {
+	t.Helper()
+	t.Setenv("PARKSTER_USERNAME", "testuser")
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
+}
+
+// --- Start command tests ---
+
+func TestStart_SingleCarSinglePayment_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+}
+
+func TestStart_NoCars_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for no cars, got nil")
+	}
+	if !strings.Contains(err.Error(), "no cars") {
+		t.Errorf("expected 'no cars' in error, got: %v", err)
+	}
+}
+
+func TestStart_MultipleCarsWithoutFlag_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123"},
+				{ID: 101, LicenseNbr: "DEF456"},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for multiple cars without flag, got nil")
+	}
+	if !strings.Contains(err.Error(), "multiple cars") {
+		t.Errorf("expected 'multiple cars' in error, got: %v", err)
+	}
+}
+
+func TestStart_CarFlagSelectsCorrectCar(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123"},
+				{ID: 101, LicenseNbr: "DEF456"},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "DEF456")
+	if err != nil {
+		t.Fatalf("expected success with --car flag, got: %v", err)
+	}
+}
+
+func TestStart_CarFlagUnknownPlate_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "UNKNOWN")
+	if err == nil {
+		t.Fatal("expected error for unknown car plate, got nil")
+	}
+	if !strings.Contains(err.Error(), "car not found") {
+		t.Errorf("expected 'car not found' in error, got: %v", err)
+	}
+}
+
+func TestStart_NoPaymentAccounts_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for no payment accounts, got nil")
+	}
+	if !strings.Contains(err.Error(), "no payment") {
+		t.Errorf("expected 'no payment' in error, got: %v", err)
+	}
+}
+
+func TestStart_MultiplePaymentsWithoutFlag_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "pay1"},
+				{PaymentAccountID: "pay2"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for multiple payment accounts without flag, got nil")
+	}
+	if !strings.Contains(err.Error(), "multiple payment") {
+		t.Errorf("expected 'multiple payment' in error, got: %v", err)
+	}
+}
+
+func TestStart_PaymentFlagSelectsCorrect(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "pay1"},
+				{PaymentAccountID: "pay2"},
+			},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "pay2")
+	if err != nil {
+		t.Fatalf("expected success with --payment flag, got: %v", err)
+	}
+}
+
+func TestStart_GetZoneFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneErr: errors.New("zone not found"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "99999", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error when GetZone fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "zone") {
+		t.Errorf("expected 'zone' in error message, got: %v", err)
+	}
+}
+
+func TestStart_StartParkingFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:     &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingErr: errors.New("server error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error when StartParking fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to start parking") {
+		t.Errorf("expected 'failed to start parking' in error, got: %v", err)
+	}
+}
+
+// --- Stop command tests ---
+
+func TestStop_SingleActiveParking_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+			},
+		},
+		stopParkingResp: &parkster.Parking{ID: 500, Status: "STOPPED"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+}
+
+func TestStop_NoActiveParkings_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error for no active parkings, got nil")
+	}
+	if !strings.Contains(err.Error(), "no active parking") {
+		t.Errorf("expected 'no active parking' in error, got: %v", err)
+	}
+}
+
+func TestStop_MultipleParkingsWithoutFlag_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+				{ID: 501, Status: "ACTIVE"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error for multiple parkings without flag, got nil")
+	}
+	if !strings.Contains(err.Error(), "multiple active parkings") {
+		t.Errorf("expected 'multiple active parkings' in error, got: %v", err)
+	}
+}
+
+func TestStop_ParkingIDFlagSelectsCorrect(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+				{ID: 501, Status: "ACTIVE"},
+			},
+		},
+		stopParkingResp: &parkster.Parking{ID: 501, Status: "STOPPED"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop", "--parking-id", "501")
+	if err != nil {
+		t.Fatalf("expected success with --parking-id flag, got: %v", err)
+	}
+}
+
+func TestStop_ParkingIDNotFound_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop", "--parking-id", "999")
+	if err == nil {
+		t.Fatal("expected error for parking ID not found, got nil")
+	}
+	if !strings.Contains(err.Error(), "parking session not found") {
+		t.Errorf("expected 'parking session not found' in error, got: %v", err)
+	}
+}
+
+func TestStop_StopParkingFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+			},
+		},
+		stopParkingErr: errors.New("server error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error when StopParking fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to stop parking") {
+		t.Errorf("expected 'failed to stop parking' in error, got: %v", err)
+	}
+}
+
+// --- Extend command tests ---
+
+func TestExtend_SingleParking_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE", Timeout: 30},
+			},
+		},
+		extendResp: &parkster.Parking{ID: 500, Status: "ACTIVE", Timeout: 60},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("extend", "--minutes", "30")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+}
+
+func TestExtend_NoParkings_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("extend", "--minutes", "30")
+	if err == nil {
+		t.Fatal("expected error for no active parkings, got nil")
+	}
+	if !strings.Contains(err.Error(), "no active parking") {
+		t.Errorf("expected 'no active parking' in error, got: %v", err)
+	}
+}
+
+func TestExtend_MultipleParkingsWithoutFlag_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+				{ID: 501, Status: "ACTIVE"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("extend", "--minutes", "30")
+	if err == nil {
+		t.Fatal("expected error for multiple parkings without flag, got nil")
+	}
+	if !strings.Contains(err.Error(), "multiple active parkings") {
+		t.Errorf("expected 'multiple active parkings' in error, got: %v", err)
+	}
+}
+
+func TestExtend_ParkingIDNotFound_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("extend", "--minutes", "30", "--parking-id", "999")
+	if err == nil {
+		t.Fatal("expected error for parking ID not found, got nil")
+	}
+	if !strings.Contains(err.Error(), "parking session not found") {
+		t.Errorf("expected 'parking session not found' in error, got: %v", err)
+	}
+}
+
+func TestExtend_ExtendParkingFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, Status: "ACTIVE"},
+			},
+		},
+		extendErr: errors.New("server error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("extend", "--minutes", "30")
+	if err == nil {
+		t.Fatal("expected error when ExtendParking fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to extend parking") {
+		t.Errorf("expected 'failed to extend parking' in error, got: %v", err)
+	}
+}
+
+// --- Status command tests ---
+
+func TestStatus_NoParkings_PrintsMessage(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in output, got: %q", stdout)
+	}
+}
+
+func TestStatus_NoParkings_JSON_EmptyArray(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("status", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got parse error: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true in JSON envelope")
+	}
+	// Data should be an empty array
+	dataBytes, _ := json.Marshal(envelope.Data)
+	if string(dataBytes) != "[]" {
+		t.Errorf("expected empty array in data, got: %s", string(dataBytes))
+	}
+}
+
+func TestStatus_HasParkings_PrintsThem(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:     500,
+					Status: "ACTIVE",
+					Car:    parkster.Car{ID: 100, LicenseNbr: "ABC123"},
+					ParkingZone: parkster.Zone{
+						ID:   17429,
+						Name: "Ericsson Kista",
+					},
+					Timeout: 30,
+				},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "500") {
+		t.Errorf("expected parking ID 500 in output, got: %q", stdout)
+	}
+}
+
+func TestStatus_LoginFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginErr: errors.New("auth failed"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("status")
+	if err == nil {
+		t.Fatal("expected error when Login fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to authenticate") {
+		t.Errorf("expected 'failed to authenticate' in error, got: %v", err)
+	}
+}
+
+// --- Auth status command tests ---
+
+func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
+	// No password env needed -- auth status only checks username
+
+	stdout, _, err := executeCommand("auth", "status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "Logged in as: testuser@example.com") {
+		t.Errorf("expected 'Logged in as: testuser@example.com' in output, got: %q", stdout)
+	}
+}
+
+func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
+	// When no env vars are set, auth.GetUsername(nil) falls through to keyring
+	// which can block on macOS waiting for Keychain access prompt.
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping: macOS Keychain may block in test environment")
+	}
+
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	stdout, _, err := executeCommand("auth", "status")
+	if err != nil {
+		t.Fatalf("expected success (not authenticated is not an error), got: %v", err)
+	}
+	if !strings.Contains(stdout, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in output, got: %q", stdout)
+	}
+}
+
+func TestAuthStatus_JSON_Envelope(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
+
+	stdout, _, err := executeCommand("auth", "status", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got parse error: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true in JSON envelope")
+	}
+
+	// Parse data to check authenticated and username fields
+	dataBytes, _ := json.Marshal(envelope.Data)
+	var authData struct {
+		Authenticated bool   `json:"authenticated"`
+		Username      string `json:"username"`
+	}
+	if err := json.Unmarshal(dataBytes, &authData); err != nil {
+		t.Fatalf("failed to parse auth status data: %v", err)
+	}
+	if !authData.Authenticated {
+		t.Error("expected authenticated=true")
+	}
+	if authData.Username != "testuser@example.com" {
+		t.Errorf("expected username 'testuser@example.com', got: %q", authData.Username)
 	}
 }

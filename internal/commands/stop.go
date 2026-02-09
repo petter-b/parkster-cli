@@ -6,7 +6,6 @@ import (
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
-	"github.com/petter-b/parkster-cli/internal/parkster"
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +37,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("authentication required: %w", err)
 	}
 
-	client := parkster.NewClient(username, password)
+	client := newAPIClient(username, password)
 
 	debugLog("fetching active parkings")
 

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -174,5 +175,59 @@ func TestGetPassword_EmptyEnvVar_FallsThrough(t *testing.T) {
 	_, err := GetPassword(cmd)
 	if err == nil {
 		t.Error("Expected error when PARKSTER_PASSWORD is empty string")
+	}
+}
+
+// --- GetCredential tests ---
+
+func TestGetCredential_EnvVar(t *testing.T) {
+	t.Setenv("PARKSTER_MY_SERVICE_API_KEY", "secret123")
+
+	val, err := GetCredential("my-service")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if val != "secret123" {
+		t.Errorf("expected secret123, got %s", val)
+	}
+}
+
+func TestGetCredential_NoEnvVar(t *testing.T) {
+	skipIfKeychainBlocks(t)
+	t.Setenv("PARKSTER_MISSING_API_KEY", "")
+
+	_, err := GetCredential("missing")
+	if err == nil {
+		t.Fatal("expected error when no credential available")
+	}
+}
+
+// --- credentialKey tests ---
+
+func TestCredentialKey(t *testing.T) {
+	key := credentialKey("myservice")
+	if key != "apikey:myservice" {
+		t.Errorf("expected apikey:myservice, got %s", key)
+	}
+}
+
+// --- configDir tests ---
+
+func TestConfigDir_XDG(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-test")
+	dir := configDir()
+	if dir != "/tmp/xdg-test/parkster" {
+		t.Errorf("expected /tmp/xdg-test/parkster, got %s", dir)
+	}
+}
+
+func TestConfigDir_Default(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	dir := configDir()
+	if !strings.Contains(dir, "parkster") {
+		t.Errorf("expected path containing 'parkster', got %s", dir)
+	}
+	if !strings.HasSuffix(dir, ".config/parkster") {
+		t.Errorf("expected path ending in .config/parkster, got %s", dir)
 	}
 }

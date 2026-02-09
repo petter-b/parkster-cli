@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -166,5 +167,145 @@ func TestPrintSuccess_Plain_Struct(t *testing.T) {
 	// Plain/TSV mode should produce tab-separated values
 	if out == "" {
 		t.Error("Expected non-empty output")
+	}
+}
+
+// captureStderr runs fn and returns what it wrote to stderr
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	fn()
+
+	_ = w.Close()
+	os.Stderr = old
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+	return buf.String()
+}
+
+// --- Additional coverage tests ---
+
+func TestPrintError_Human(t *testing.T) {
+	// In human mode, PrintError should write to stderr, not stdout
+	stdoutOut := captureStdout(t, func() {
+		stderrOut := captureStderr(t, func() {
+			PrintError("bad thing happened", ModeHuman)
+		})
+		if stderrOut == "" {
+			t.Error("Expected output on stderr, got empty")
+		}
+		if stderrOut != "Error: bad thing happened\n" {
+			t.Errorf("Expected 'Error: bad thing happened\\n', got %q", stderrOut)
+		}
+	})
+	if stdoutOut != "" {
+		t.Errorf("Expected no stdout output in human error mode, got %q", stdoutOut)
+	}
+}
+
+func TestPrintSuccess_Human_Slice(t *testing.T) {
+	items := []testItem{
+		{ID: 1, Name: "alpha"},
+		{ID: 2, Name: "beta"},
+	}
+
+	out := captureStdout(t, func() {
+		_ = PrintSuccess(items, ModeHuman)
+	})
+
+	// Should contain both items
+	if !strings.Contains(out, "alpha") {
+		t.Error("Expected output to contain 'alpha'")
+	}
+	if !strings.Contains(out, "beta") {
+		t.Error("Expected output to contain 'beta'")
+	}
+	// Items should be separated by a blank line
+	if !strings.Contains(out, "\n\n") {
+		t.Error("Expected blank line separating items in human slice output")
+	}
+}
+
+func TestPrintSuccess_Plain_Slice(t *testing.T) {
+	items := []testItem{
+		{ID: 10, Name: "first"},
+		{ID: 20, Name: "second"},
+	}
+
+	out := captureStdout(t, func() {
+		_ = PrintSuccess(items, ModePlain)
+	})
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("Expected 2 TSV rows, got %d: %q", len(lines), out)
+	}
+
+	// Each line should be tab-separated
+	if !strings.Contains(lines[0], "\t") {
+		t.Errorf("Expected tab-separated values in first row, got %q", lines[0])
+	}
+	if !strings.Contains(lines[0], "10") || !strings.Contains(lines[0], "first") {
+		t.Errorf("First row should contain '10' and 'first', got %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "20") || !strings.Contains(lines[1], "second") {
+		t.Errorf("Second row should contain '20' and 'second', got %q", lines[1])
+	}
+}
+
+func TestPrintSuccess_Human_EmptyFields(t *testing.T) {
+	// Name is zero value (empty string), should be omitted
+	item := testItem{ID: 7, Name: ""}
+
+	out := captureStdout(t, func() {
+		_ = PrintSuccess(item, ModeHuman)
+	})
+
+	if !strings.Contains(out, "id: 7") {
+		t.Errorf("Expected 'id: 7' in output, got %q", out)
+	}
+	if strings.Contains(out, "name") {
+		t.Errorf("Expected zero-value 'name' field to be omitted, got %q", out)
+	}
+}
+
+func TestPrintSuccess_Human_Pointer(t *testing.T) {
+	item := &testItem{ID: 99, Name: "pointer-test"}
+
+	out := captureStdout(t, func() {
+		_ = PrintSuccess(item, ModeHuman)
+	})
+
+	if !strings.Contains(out, "99") {
+		t.Errorf("Expected output to contain '99', got %q", out)
+	}
+	if !strings.Contains(out, "pointer-test") {
+		t.Errorf("Expected output to contain 'pointer-test', got %q", out)
+	}
+}
+
+func TestPrintSuccess_Plain_NonStruct(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = PrintSuccess("just a string", ModePlain)
+	})
+
+	trimmed := strings.TrimSpace(out)
+	if trimmed != "just a string" {
+		t.Errorf("Expected 'just a string', got %q", trimmed)
+	}
+}
+
+func TestPrintSuccess_Human_NonStruct(t *testing.T) {
+	out := captureStdout(t, func() {
+		_ = PrintSuccess("hello world", ModeHuman)
+	})
+
+	trimmed := strings.TrimSpace(out)
+	if trimmed != "hello world" {
+		t.Errorf("Expected 'hello world', got %q", trimmed)
 	}
 }

@@ -46,7 +46,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("authentication required: %w", err)
 	}
 
-	client := parkster.NewClient(username, password)
+	client := newAPIClient(username, password)
 
 	debugLog("authenticating as %s", username)
 

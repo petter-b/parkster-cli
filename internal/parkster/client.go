@@ -12,6 +12,15 @@ import (
 
 const DefaultBaseURL = "https://api.parkster.se/api/mobile/v2"
 
+// API defines the methods commands use to interact with the Parkster API.
+type API interface {
+	Login() (*User, error)
+	GetZone(zoneID int) (*Zone, error)
+	StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)
+	StopParking(parkingID int) (*Parking, error)
+	ExtendParking(parkingID, minutes int) (*Parking, error)
+}
+
 // Client is the Parkster API client
 type Client struct {
 	http     *http.Client
