@@ -22,23 +22,58 @@ type PaymentAccount struct {
 	PaymentAccountID string `json:"paymentAccountId"`
 }
 
+// City represents a city/municipality
+type City struct {
+	Name string `json:"name"`
+}
+
+// ParkingFee represents a time-based fee rule
+type ParkingFee struct {
+	AmountPerHour float64 `json:"amountPerHour"`
+	Description   string  `json:"description"`
+	StartTime     int     `json:"startTime"` // Minutes since midnight
+	EndTime       int     `json:"endTime"`   // Minutes since midnight
+}
+
 // Zone represents a parking zone
 type Zone struct {
-	ID      int     `json:"id"`
-	Name    string  `json:"name"`
-	FeeZone FeeZone `json:"feeZone"`
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	ZoneCode  string  `json:"zoneCode"`
+	City      City    `json:"city"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	FeeZone   FeeZone `json:"feeZone"`
 }
 
 // FeeZone contains pricing information
 type FeeZone struct {
-	ID       int      `json:"id"`
-	Currency Currency `json:"currency"`
+	ID          int          `json:"id"`
+	Currency    Currency     `json:"currency"`
+	ParkingFees []ParkingFee `json:"parkingFees"`
 }
 
 // Currency represents money denomination
 type Currency struct {
 	Code   string `json:"code"`
 	Symbol string `json:"symbol"`
+}
+
+// ZoneSearchItem represents a zone from location search results
+type ZoneSearchItem struct {
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	ZoneCode  string  `json:"zoneCode"`
+	City      City    `json:"city"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Distance  int     `json:"distance,omitempty"`
+}
+
+// SearchResult holds the two arrays from location search API
+type SearchResult struct {
+	ParkingZonesAtPosition     []ZoneSearchItem `json:"parkingZonesAtPosition"`
+	ParkingZonesNearbyPosition []ZoneSearchItem `json:"parkingZonesNearbyPosition"`
 }
 
 // Parking represents an active or completed parking session

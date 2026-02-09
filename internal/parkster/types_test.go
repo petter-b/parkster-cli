@@ -151,3 +151,194 @@ func TestParking_JSONUnmarshal(t *testing.T) {
 		t.Errorf("Expected status ACTIVE, got %s", parking.Status)
 	}
 }
+
+// --- Zone search type tests (Task 1) ---
+
+func TestSearchResult_JSONUnmarshal(t *testing.T) {
+	// Realistic JSON from API.md location-search response
+	jsonData := `{
+		"parkingZonesAtPosition": [
+			{
+				"id": 17429,
+				"name": "Ericsson Kista",
+				"zoneCode": "80500",
+				"city": {"name": "Stockholm"},
+				"latitude": 59.404833,
+				"longitude": 17.953333
+			}
+		],
+		"parkingZonesNearbyPosition": [
+			{
+				"id": 7713,
+				"name": "Berlin Zone",
+				"zoneCode": "100028",
+				"city": {"name": "Berlin"},
+				"latitude": 52.520008,
+				"longitude": 13.404954,
+				"distance": 150
+			}
+		]
+	}`
+
+	var result SearchResult
+	err := json.Unmarshal([]byte(jsonData), &result)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal search result: %v", err)
+	}
+
+	// Verify parkingZonesAtPosition
+	if len(result.ParkingZonesAtPosition) != 1 {
+		t.Fatalf("Expected 1 zone at position, got %d", len(result.ParkingZonesAtPosition))
+	}
+	atPos := result.ParkingZonesAtPosition[0]
+	if atPos.ID != 17429 {
+		t.Errorf("Expected ID 17429, got %d", atPos.ID)
+	}
+	if atPos.Name != "Ericsson Kista" {
+		t.Errorf("Expected name 'Ericsson Kista', got %s", atPos.Name)
+	}
+	if atPos.ZoneCode != "80500" {
+		t.Errorf("Expected zoneCode '80500', got %s", atPos.ZoneCode)
+	}
+	if atPos.City.Name != "Stockholm" {
+		t.Errorf("Expected city 'Stockholm', got %s", atPos.City.Name)
+	}
+	if atPos.Latitude != 59.404833 {
+		t.Errorf("Expected latitude 59.404833, got %f", atPos.Latitude)
+	}
+	if atPos.Longitude != 17.953333 {
+		t.Errorf("Expected longitude 17.953333, got %f", atPos.Longitude)
+	}
+
+	// Verify parkingZonesNearbyPosition
+	if len(result.ParkingZonesNearbyPosition) != 1 {
+		t.Fatalf("Expected 1 zone nearby, got %d", len(result.ParkingZonesNearbyPosition))
+	}
+	nearby := result.ParkingZonesNearbyPosition[0]
+	if nearby.ID != 7713 {
+		t.Errorf("Expected ID 7713, got %d", nearby.ID)
+	}
+	if nearby.ZoneCode != "100028" {
+		t.Errorf("Expected zoneCode '100028', got %s", nearby.ZoneCode)
+	}
+	if nearby.City.Name != "Berlin" {
+		t.Errorf("Expected city 'Berlin', got %s", nearby.City.Name)
+	}
+	if nearby.Distance != 150 {
+		t.Errorf("Expected distance 150, got %d", nearby.Distance)
+	}
+}
+
+func TestZoneDetail_JSONUnmarshal(t *testing.T) {
+	// Realistic JSON from API.md zone detail response
+	jsonData := `{
+		"id": 17429,
+		"name": "Ericsson Kista",
+		"zoneCode": "80500",
+		"city": {"name": "Stockholm"},
+		"latitude": 59.404833,
+		"longitude": 17.953333,
+		"feeZone": {
+			"id": 27545,
+			"currency": {"code": "SEK", "symbol": "kr"},
+			"parkingFees": [
+				{
+					"amountPerHour": 10.0,
+					"description": "Mon-Fri 08:00-18:00",
+					"startTime": 480,
+					"endTime": 1080
+				},
+				{
+					"amountPerHour": 0.0,
+					"description": "Evenings and weekends",
+					"startTime": 1080,
+					"endTime": 480
+				}
+			]
+		}
+	}`
+
+	var zone Zone
+	err := json.Unmarshal([]byte(jsonData), &zone)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal zone detail: %v", err)
+	}
+
+	if zone.ID != 17429 {
+		t.Errorf("Expected ID 17429, got %d", zone.ID)
+	}
+	if zone.ZoneCode != "80500" {
+		t.Errorf("Expected zoneCode '80500', got %s", zone.ZoneCode)
+	}
+	if zone.City.Name != "Stockholm" {
+		t.Errorf("Expected city 'Stockholm', got %s", zone.City.Name)
+	}
+	if zone.Latitude != 59.404833 {
+		t.Errorf("Expected latitude 59.404833, got %f", zone.Latitude)
+	}
+	if zone.Longitude != 17.953333 {
+		t.Errorf("Expected longitude 17.953333, got %f", zone.Longitude)
+	}
+	if zone.FeeZone.ID != 27545 {
+		t.Errorf("Expected fee zone ID 27545, got %d", zone.FeeZone.ID)
+	}
+	if len(zone.FeeZone.ParkingFees) != 2 {
+		t.Fatalf("Expected 2 parking fees, got %d", len(zone.FeeZone.ParkingFees))
+	}
+	if zone.FeeZone.ParkingFees[0].AmountPerHour != 10.0 {
+		t.Errorf("Expected amountPerHour 10.0, got %f", zone.FeeZone.ParkingFees[0].AmountPerHour)
+	}
+	if zone.FeeZone.ParkingFees[0].Description != "Mon-Fri 08:00-18:00" {
+		t.Errorf("Expected description 'Mon-Fri 08:00-18:00', got %s", zone.FeeZone.ParkingFees[0].Description)
+	}
+	if zone.FeeZone.ParkingFees[0].StartTime != 480 {
+		t.Errorf("Expected startTime 480, got %d", zone.FeeZone.ParkingFees[0].StartTime)
+	}
+	if zone.FeeZone.ParkingFees[0].EndTime != 1080 {
+		t.Errorf("Expected endTime 1080, got %d", zone.FeeZone.ParkingFees[0].EndTime)
+	}
+}
+
+func TestZoneSearchItem_JSONUnmarshal(t *testing.T) {
+	// Test with distance field (nearby result)
+	jsonWithDistance := `{
+		"id": 7713,
+		"name": "Berlin Zone",
+		"zoneCode": "100028",
+		"city": {"name": "Berlin"},
+		"latitude": 52.520008,
+		"longitude": 13.404954,
+		"distance": 150
+	}`
+
+	var itemWithDistance ZoneSearchItem
+	err := json.Unmarshal([]byte(jsonWithDistance), &itemWithDistance)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal zone with distance: %v", err)
+	}
+	if itemWithDistance.Distance != 150 {
+		t.Errorf("Expected distance 150, got %d", itemWithDistance.Distance)
+	}
+
+	// Test without distance field (at-position result)
+	jsonWithoutDistance := `{
+		"id": 17429,
+		"name": "Ericsson Kista",
+		"zoneCode": "80500",
+		"city": {"name": "Stockholm"},
+		"latitude": 59.404833,
+		"longitude": 17.953333
+	}`
+
+	var itemWithoutDistance ZoneSearchItem
+	err = json.Unmarshal([]byte(jsonWithoutDistance), &itemWithoutDistance)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal zone without distance: %v", err)
+	}
+	if itemWithoutDistance.ID != 17429 {
+		t.Errorf("Expected ID 17429, got %d", itemWithoutDistance.ID)
+	}
+	if itemWithoutDistance.Distance != 0 {
+		t.Errorf("Expected distance 0 (omitted), got %d", itemWithoutDistance.Distance)
+	}
+}
