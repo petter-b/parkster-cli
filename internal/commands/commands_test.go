@@ -224,16 +224,20 @@ func TestOutputMode_Plain(t *testing.T) {
 // --- Mock API client ---
 
 type mockAPI struct {
-	loginResp        *parkster.User
-	loginErr         error
-	getZoneResp      *parkster.Zone
-	getZoneErr       error
-	startParkingResp *parkster.Parking
-	startParkingErr  error
-	stopParkingResp  *parkster.Parking
-	stopParkingErr   error
-	extendResp       *parkster.Parking
-	extendErr        error
+	loginResp         *parkster.User
+	loginErr          error
+	getZoneResp       *parkster.Zone
+	getZoneErr        error
+	startParkingResp  *parkster.Parking
+	startParkingErr   error
+	stopParkingResp   *parkster.Parking
+	stopParkingErr    error
+	extendResp        *parkster.Parking
+	extendErr         error
+	searchZonesResp   *parkster.SearchResult
+	searchZonesErr    error
+	getZoneByCodeResp *parkster.Zone
+	getZoneByCodeErr  error
 }
 
 func (m *mockAPI) Login() (*parkster.User, error) {
@@ -257,13 +261,11 @@ func (m *mockAPI) ExtendParking(_, _ int) (*parkster.Parking, error) {
 }
 
 func (m *mockAPI) SearchZones(_, _ float64, _ int) (*parkster.SearchResult, error) {
-	// Not used by current commands - return empty result
-	return &parkster.SearchResult{}, nil
+	return m.searchZonesResp, m.searchZonesErr
 }
 
 func (m *mockAPI) GetZoneByCode(_ string, _, _ float64) (*parkster.Zone, error) {
-	// Not used by current commands - return nil error
-	return nil, nil
+	return m.getZoneByCodeResp, m.getZoneByCodeErr
 }
 
 // withMockClient swaps the global newAPIClient factory with one that returns
@@ -911,5 +913,181 @@ func TestAuthStatus_JSON_Envelope(t *testing.T) {
 	}
 	if authData.Username != "testuser@example.com" {
 		t.Errorf("expected username 'testuser@example.com', got: %q", authData.Username)
+	}
+}
+
+// --- Zones command tests ---
+
+func TestHelp_ZonesCommand(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "search") {
+		t.Error("zones help should show search subcommand")
+	}
+	if !strings.Contains(stdout, "info") {
+		t.Error("zones help should show info subcommand")
+	}
+}
+
+func TestZonesSearch_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", City: parkster.City{Name: "Stockholm"}},
+			},
+			ParkingZonesNearbyPosition: []parkster.ZoneSearchItem{
+				{ID: 17430, Name: "Kistagången", ZoneCode: "80501", City: parkster.City{Name: "Stockholm"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code 80500 in output, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Ericsson Kista") {
+		t.Errorf("expected zone name in output, got: %q", stdout)
+	}
+}
+
+func TestZonesSearch_Success_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got parse error: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true in JSON envelope")
+	}
+	dataBytes, _ := json.Marshal(envelope.Data)
+	if !strings.Contains(string(dataBytes), "80500") {
+		t.Error("expected zone data in JSON output")
+	}
+}
+
+func TestZonesSearch_NoResults(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition:     []parkster.ZoneSearchItem{},
+			ParkingZonesNearbyPosition: []parkster.ZoneSearchItem{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("expected success with empty results, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No zones found") {
+		t.Errorf("expected 'No zones found' in output, got: %q", stdout)
+	}
+}
+
+func TestZonesSearch_NoResults_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition:     []parkster.ZoneSearchItem{},
+			ParkingZonesNearbyPosition: []parkster.ZoneSearchItem{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got parse error: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true in JSON envelope")
+	}
+	// Data should be an empty array
+	dataBytes, _ := json.Marshal(envelope.Data)
+	if string(dataBytes) != "[]" {
+		t.Errorf("expected empty array in data, got: %s", string(dataBytes))
+	}
+}
+
+func TestZonesSearch_MissingLatLon_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "search")
+	if err == nil {
+		t.Fatal("expected error for missing --lat and --lon flags, got nil")
+	}
+}
+
+func TestZonesSearch_InvalidCoordinates_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("zones", "search", "--lat", "999", "--lon", "17.893")
+	if err == nil {
+		t.Fatal("expected error for invalid latitude, got nil")
+	}
+	if !strings.Contains(err.Error(), "latitude") {
+		t.Errorf("expected 'latitude' in error, got: %v", err)
+	}
+}
+
+func TestZonesSearch_SearchFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		searchZonesErr: errors.New("search failed"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
+	if err == nil {
+		t.Fatal("expected error when SearchZones fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "search") {
+		t.Errorf("expected 'search' in error, got: %v", err)
+	}
+}
+
+func TestZonesSearch_CustomRadius(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "--radius", "500")
+	if err != nil {
+		t.Fatalf("expected success with custom radius, got: %v", err)
 	}
 }
