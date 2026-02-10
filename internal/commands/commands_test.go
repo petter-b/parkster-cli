@@ -1343,3 +1343,170 @@ func TestStart_ZoneCodeWithoutLatLon_FallsBackToID(t *testing.T) {
 		t.Fatalf("expected success falling back to ID lookup, got: %v", err)
 	}
 }
+
+// --- Start command dry-run tests ---
+
+func TestStart_DryRun_ShowsCost(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{
+			ID:       17429,
+			ZoneCode: "80500",
+			Name:     "Ericsson Kista",
+			FeeZone: parkster.FeeZone{
+				ID: 27545,
+				Currency: parkster.Currency{
+					Code:   "SEK",
+					Symbol: "kr",
+				},
+			},
+		},
+		estimateCostResp: &parkster.CostEstimate{
+			Amount:   15.0,
+			Currency: "SEK",
+		},
+		// startParkingResp intentionally nil - should not be called
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected success with dry-run, got: %v", err)
+	}
+	if !strings.Contains(stderr, "DRY RUN") {
+		t.Errorf("expected 'DRY RUN' in stderr, got: %q", stderr)
+	}
+	// Check that cost appears in output (either stdout or stderr)
+	output := stdout + stderr
+	if !strings.Contains(output, "15") {
+		t.Errorf("expected cost '15' in output, got stdout: %q, stderr: %q", stdout, stderr)
+	}
+}
+
+func TestStart_DryRun_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{
+			ID:       17429,
+			ZoneCode: "80500",
+			Name:     "Ericsson Kista",
+			FeeZone: parkster.FeeZone{
+				ID:       27545,
+				Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+			},
+		},
+		estimateCostResp: &parkster.CostEstimate{
+			Amount:   15.0,
+			Currency: "SEK",
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON envelope, got parse error: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true in JSON envelope")
+	}
+
+	// Parse data to check for zone, car, duration, cost
+	dataBytes, _ := json.Marshal(envelope.Data)
+	var dryRunData map[string]interface{}
+	if err := json.Unmarshal(dataBytes, &dryRunData); err != nil {
+		t.Fatalf("failed to parse dry-run data: %v", err)
+	}
+
+	if dryRunData["zone"] == nil {
+		t.Error("expected zone field in dry-run data")
+	}
+	if dryRunData["car"] == nil {
+		t.Error("expected car field in dry-run data")
+	}
+	if dryRunData["duration"] == nil {
+		t.Error("expected duration field in dry-run data")
+	}
+	if dryRunData["cost"] == nil {
+		t.Error("expected cost field in dry-run data")
+	}
+	if dryRunData["dryRun"] != true {
+		t.Error("expected dryRun=true in dry-run data")
+	}
+}
+
+func TestStart_DryRun_Plain(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{
+			ID:       17429,
+			ZoneCode: "80500",
+			Name:     "Ericsson Kista",
+			FeeZone:  parkster.FeeZone{ID: 27545, Currency: parkster.Currency{Code: "SEK"}},
+		},
+		estimateCostResp: &parkster.CostEstimate{
+			Amount:   15.0,
+			Currency: "SEK",
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	// Plain mode should contain tab-separated values with cost info
+	if !strings.Contains(stdout, "15") {
+		t.Errorf("expected cost in plain output, got: %q", stdout)
+	}
+}
+
+func TestStart_DryRun_CostEstimateFails_StillSucceeds(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{
+			ID:       17429,
+			ZoneCode: "80500",
+			Name:     "Ericsson Kista",
+			FeeZone:  parkster.FeeZone{ID: 27545},
+		},
+		estimateCostErr: errors.New("cost estimation unavailable"),
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected success even when cost estimate fails, got: %v", err)
+	}
+	if !strings.Contains(stderr, "DRY RUN") {
+		t.Errorf("expected 'DRY RUN' in stderr even when cost fails, got: %q", stderr)
+	}
+}

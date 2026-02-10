@@ -11,6 +11,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// DryRunResult holds the simulation output for --dry-run mode
+type DryRunResult struct {
+	Zone     string  `json:"zone"`
+	ZoneCode string  `json:"zoneCode"`
+	ZoneName string  `json:"zoneName"`
+	Car      string  `json:"car"`
+	Payment  string  `json:"payment"`
+	Duration int     `json:"duration"`
+	Cost     float64 `json:"cost,omitempty"`
+	Currency string  `json:"currency,omitempty"`
+	DryRun   bool    `json:"dryRun"`
+}
+
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start a parking session",
@@ -70,6 +83,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	duration, _ := cmd.Flags().GetInt("duration")
 	carFlag, _ := cmd.Flags().GetString("car")
 	paymentFlag, _ := cmd.Flags().GetString("payment")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
 
@@ -147,6 +161,40 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	debugLog("resolved to zone %d (fee zone ID %d)", zone.ID, zone.FeeZone.ID)
+
+	// Dry-run mode: simulate without starting
+	if dryRun {
+		debugLog("dry-run mode: estimating cost")
+
+		result := DryRunResult{
+			Zone:     fmt.Sprintf("%d", zone.ID),
+			ZoneCode: zone.ZoneCode,
+			ZoneName: zone.Name,
+			Car:      selectedCar.LicenseNbr,
+			Payment:  selectedPayment.PaymentAccountID,
+			Duration: duration,
+			DryRun:   true,
+		}
+
+		// Try to get cost estimate (graceful failure)
+		estimate, err := client.EstimateCost(zone.ID, zone.FeeZone.ID, selectedCar.ID, selectedPayment.PaymentAccountID, duration)
+		if err != nil {
+			debugLog("cost estimation failed: %v", err)
+		} else {
+			result.Cost = estimate.Amount
+			result.Currency = estimate.Currency
+		}
+
+		fmt.Fprintf(os.Stderr, "DRY RUN: Would start parking\n")
+		fmt.Fprintf(os.Stderr, "  Zone: %s %s (%s)\n", zone.ZoneCode, zone.Name, fmt.Sprintf("%d", zone.ID))
+		fmt.Fprintf(os.Stderr, "  Car: %s\n", selectedCar.LicenseNbr)
+		fmt.Fprintf(os.Stderr, "  Duration: %d minutes\n", duration)
+		if result.Cost > 0 {
+			fmt.Fprintf(os.Stderr, "  Estimated cost: %.2f %s\n", result.Cost, result.Currency)
+		}
+
+		return output.PrintSuccess(result, OutputMode())
+	}
 
 	// Start parking
 	debugLog("starting parking for %d minutes", duration)
