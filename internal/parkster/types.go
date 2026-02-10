@@ -86,3 +86,9 @@ type Parking struct {
 	Cost        float64 `json:"cost"`
 	Status      string  `json:"status"`
 }
+
+// CostEstimate represents the probable cost of a parking session
+type CostEstimate struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
+}

@@ -342,3 +342,26 @@ func TestZoneSearchItem_JSONUnmarshal(t *testing.T) {
 		t.Errorf("Expected distance 0 (omitted), got %d", itemWithoutDistance.Distance)
 	}
 }
+
+// --- Cost estimate type test ---
+
+func TestCostEstimate_JSONUnmarshal(t *testing.T) {
+	// Test the CostEstimate type can be unmarshaled from JSON
+	jsonData := `{
+		"amount": 15.0,
+		"currency": "SEK"
+	}`
+
+	var estimate CostEstimate
+	err := json.Unmarshal([]byte(jsonData), &estimate)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal cost estimate: %v", err)
+	}
+
+	if estimate.Amount != 15.0 {
+		t.Errorf("Expected amount 15.0, got %f", estimate.Amount)
+	}
+	if estimate.Currency != "SEK" {
+		t.Errorf("Expected currency 'SEK', got %s", estimate.Currency)
+	}
+}

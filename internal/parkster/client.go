@@ -21,6 +21,7 @@ type API interface {
 	StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)
 	StopParking(parkingID int) (*Parking, error)
 	ExtendParking(parkingID, minutes int) (*Parking, error)
+	EstimateCost(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*CostEstimate, error)
 }
 
 // Client is the Parkster API client
@@ -302,4 +303,31 @@ func (c *Client) ExtendParking(parkingID, minutes int) (*Parking, error) {
 	}
 
 	return &parking, nil
+}
+
+// EstimateCost returns the probable cost of a parking session
+func (c *Client) EstimateCost(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*CostEstimate, error) {
+	params := url.Values{}
+	params.Set("parkingZoneId", fmt.Sprintf("%d", zoneID))
+	params.Set("feeZoneId", fmt.Sprintf("%d", feeZoneID))
+	params.Set("carId", fmt.Sprintf("%d", carID))
+	params.Set("paymentAccountId", paymentID)
+	params.Set("timeout", fmt.Sprintf("%d", timeout))
+
+	resp, err := c.get("/parkings/short-term/probable-cost", params)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to estimate cost (status %d)", resp.StatusCode)
+	}
+
+	var estimate CostEstimate
+	if err := json.NewDecoder(resp.Body).Decode(&estimate); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &estimate, nil
 }

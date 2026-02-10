@@ -743,3 +743,70 @@ func TestGetZoneByCode_SearchFails(t *testing.T) {
 		t.Fatal("Expected error when search fails")
 	}
 }
+
+// --- EstimateCost API method tests ---
+
+func TestEstimateCost_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/parkings/short-term/probable-cost" {
+			t.Errorf("Expected path /parkings/short-term/probable-cost, got %s", r.URL.Path)
+		}
+
+		// Verify query parameters
+		query := r.URL.Query()
+		if query.Get("parkingZoneId") != "17429" {
+			t.Errorf("Expected parkingZoneId=17429, got %s", query.Get("parkingZoneId"))
+		}
+		if query.Get("feeZoneId") != "27545" {
+			t.Errorf("Expected feeZoneId=27545, got %s", query.Get("feeZoneId"))
+		}
+		if query.Get("carId") != "67890" {
+			t.Errorf("Expected carId=67890, got %s", query.Get("carId"))
+		}
+		if query.Get("paymentAccountId") != "pay_123" {
+			t.Errorf("Expected paymentAccountId=pay_123, got %s", query.Get("paymentAccountId"))
+		}
+		if query.Get("timeout") != "30" {
+			t.Errorf("Expected timeout=30, got %s", query.Get("timeout"))
+		}
+		// Verify device params
+		if query.Get("platform") != "ios" {
+			t.Errorf("Expected platform=ios, got %s", query.Get("platform"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(CostEstimate{
+			Amount:   15.0,
+			Currency: "SEK",
+		})
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	estimate, err := client.EstimateCost(17429, 27545, 67890, "pay_123", 30)
+	if err != nil {
+		t.Fatalf("EstimateCost failed: %v", err)
+	}
+	if estimate.Amount != 15.0 {
+		t.Errorf("Expected amount 15.0, got %f", estimate.Amount)
+	}
+	if estimate.Currency != "SEK" {
+		t.Errorf("Expected currency 'SEK', got %s", estimate.Currency)
+	}
+}
+
+func TestEstimateCost_Error(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.EstimateCost(17429, 27545, 67890, "pay_123", 30)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "failed to estimate cost") {
+		t.Errorf("Expected 'failed to estimate cost' in error, got: %s", err.Error())
+	}
+}

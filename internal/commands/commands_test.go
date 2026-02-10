@@ -238,7 +238,12 @@ type mockAPI struct {
 	searchZonesErr    error
 	getZoneByCodeResp *parkster.Zone
 	getZoneByCodeErr  error
+	estimateCostResp  *parkster.CostEstimate
+	estimateCostErr   error
 }
+
+// Compile-time check that mockAPI implements parkster.API
+var _ parkster.API = (*mockAPI)(nil)
 
 func (m *mockAPI) Login() (*parkster.User, error) {
 	return m.loginResp, m.loginErr
@@ -266,6 +271,10 @@ func (m *mockAPI) SearchZones(_, _ float64, _ int) (*parkster.SearchResult, erro
 
 func (m *mockAPI) GetZoneByCode(_ string, _, _ float64) (*parkster.Zone, error) {
 	return m.getZoneByCodeResp, m.getZoneByCodeErr
+}
+
+func (m *mockAPI) EstimateCost(_, _, _ int, _ string, _ int) (*parkster.CostEstimate, error) {
+	return m.estimateCostResp, m.estimateCostErr
 }
 
 // withMockClient swaps the global newAPIClient factory with one that returns
