@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
@@ -16,26 +17,61 @@ var startCmd = &cobra.Command{
 	Long: `Start a new parking session in a specific zone.
 
 Examples:
+  parkster start --zone 80500 --duration 30 --lat 59.373 --lon 17.893
   parkster start --zone 17429 --duration 30
-  parkster start --zone 17429 --duration 30 --car ABC123
-  parkster start --zone 17429 --duration 30 --username user@example.com --password secret`,
+  parkster start --dry-run --zone 80500 --duration 30 --lat 59.373 --lon 17.893`,
 	RunE: runStart,
 }
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	startCmd.Flags().Int("zone", 0, "Parking zone ID (required)")
+	startCmd.Flags().String("zone", "", "Parking zone code or ID (e.g., 80500, 17429)")
 	startCmd.Flags().Int("duration", 30, "Parking duration in minutes")
 	startCmd.Flags().String("car", "", "License plate (auto-selects if only one car)")
 	startCmd.Flags().String("payment", "", "Payment account ID (auto-selects if only one)")
+	startCmd.Flags().Bool("dry-run", false, "Simulate parking flow without starting (shows cost estimate)")
+	startCmd.Flags().Float64("lat", 0, "Latitude for zone code lookup")
+	startCmd.Flags().Float64("lon", 0, "Longitude for zone code lookup")
 	_ = startCmd.MarkFlagRequired("zone")
 }
 
+// resolveZone attempts to resolve a zone from either a zone code or numeric ID.
+// If lat/lon are provided, it tries zone code lookup first via GetZoneByCode.
+// Otherwise, it tries to parse the input as a numeric ID and calls GetZone.
+func resolveZone(client parkster.API, zoneInput string, lat, lon float64) (*parkster.Zone, error) {
+	// If lat/lon provided, try zone code lookup first
+	if lat != 0 && lon != 0 {
+		zone, err := client.GetZoneByCode(zoneInput, lat, lon)
+		if err == nil {
+			return zone, nil
+		}
+		debugLog("zone code lookup failed: %v, trying as numeric ID", err)
+	}
+
+	// Fallback: try parsing as numeric ID
+	zoneID, parseErr := strconv.Atoi(zoneInput)
+	if parseErr != nil {
+		if lat == 0 && lon == 0 {
+			return nil, fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneInput)
+		}
+		return nil, fmt.Errorf("zone %q not found as code or ID", zoneInput)
+	}
+
+	zone, err := client.GetZone(zoneID)
+	if err != nil {
+		return nil, fmt.Errorf("zone %d not found: %w", zoneID, err)
+	}
+
+	return zone, nil
+}
+
 func runStart(cmd *cobra.Command, args []string) error {
-	zoneID, _ := cmd.Flags().GetInt("zone")
+	zoneInput, _ := cmd.Flags().GetString("zone")
 	duration, _ := cmd.Flags().GetInt("duration")
 	carFlag, _ := cmd.Flags().GetString("car")
 	paymentFlag, _ := cmd.Flags().GetString("payment")
+	lat, _ := cmd.Flags().GetFloat64("lat")
+	lon, _ := cmd.Flags().GetFloat64("lon")
 
 	username, err := auth.GetUsername(cmd)
 	if err != nil {
@@ -103,14 +139,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	debugLog("selected payment: %s", selectedPayment.PaymentAccountID)
 
-	// Get zone details (need fee zone ID)
-	debugLog("fetching zone details for zone %d", zoneID)
-	zone, err := client.GetZone(zoneID)
+	// Resolve zone (by code or ID)
+	debugLog("resolving zone: %s", zoneInput)
+	zone, err := resolveZone(client, zoneInput, lat, lon)
 	if err != nil {
-		return fmt.Errorf("failed to get zone details: %w", err)
+		return err
 	}
 
-	debugLog("zone %d has fee zone ID %d", zone.ID, zone.FeeZone.ID)
+	debugLog("resolved to zone %d (fee zone ID %d)", zone.ID, zone.FeeZone.ID)
 
 	// Start parking
 	debugLog("starting parking for %d minutes", duration)

@@ -1246,3 +1246,100 @@ func TestZonesInfo_AuthFails_Error(t *testing.T) {
 		t.Errorf("expected 'authentication' in error, got: %v", err)
 	}
 }
+
+// --- Start command with zone code tests ---
+
+func TestStart_WithZoneCode_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{
+			ID:       17429,
+			ZoneCode: "80500",
+			Name:     "Ericsson Kista",
+			FeeZone:  parkster.FeeZone{ID: 27545},
+		},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("expected success with zone code, got: %v", err)
+	}
+}
+
+func TestStart_WithNumericID_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeErr: errors.New("code lookup failed"),
+		getZoneResp: &parkster.Zone{
+			ID:      17429,
+			FeeZone: parkster.FeeZone{ID: 27545},
+		},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err != nil {
+		t.Fatalf("expected success with numeric ID, got: %v", err)
+	}
+}
+
+func TestStart_ZoneCodeNotFound_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeErr: errors.New("zone not found"),
+		getZoneErr:       errors.New("zone not found"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "99999", "--duration", "30", "--lat", "59.373", "--lon", "17.893")
+	if err == nil {
+		t.Fatal("expected error when zone code not found, got nil")
+	}
+	if !strings.Contains(err.Error(), "zone") && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected zone/not found in error, got: %v", err)
+	}
+}
+
+func TestStart_ZoneCodeWithoutLatLon_FallsBackToID(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{
+			ID:      17429,
+			FeeZone: parkster.FeeZone{ID: 27545},
+		},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err != nil {
+		t.Fatalf("expected success falling back to ID lookup, got: %v", err)
+	}
+}
