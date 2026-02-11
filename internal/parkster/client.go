@@ -17,7 +17,7 @@ type API interface {
 	Login() (*User, error)
 	GetZone(zoneID int) (*Zone, error)
 	SearchZones(lat, lon float64, radius int) (*SearchResult, error)
-	GetZoneByCode(code string, lat, lon float64) (*Zone, error)
+	GetZoneByCode(code string, lat, lon float64, radiusMeters int) (*Zone, error)
 	StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)
 	StopParking(parkingID int) (*Parking, error)
 	ExtendParking(parkingID, minutes int) (*Parking, error)
@@ -213,9 +213,13 @@ func (c *Client) SearchZones(lat, lon float64, radius int) (*SearchResult, error
 }
 
 // GetZoneByCode searches for a zone by sign code near a location
-func (c *Client) GetZoneByCode(code string, lat, lon float64) (*Zone, error) {
-	// Search with 5km radius for code lookup
-	result, err := c.SearchZones(lat, lon, 5000)
+func (c *Client) GetZoneByCode(code string, lat, lon float64, radiusMeters int) (*Zone, error) {
+	// Use 500m default for code lookup if radius not specified
+	if radiusMeters <= 0 {
+		radiusMeters = 500
+	}
+
+	result, err := c.SearchZones(lat, lon, radiusMeters)
 	if err != nil {
 		return nil, fmt.Errorf("zone search failed: %w", err)
 	}

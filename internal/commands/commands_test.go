@@ -269,7 +269,7 @@ func (m *mockAPI) SearchZones(_, _ float64, _ int) (*parkster.SearchResult, erro
 	return m.searchZonesResp, m.searchZonesErr
 }
 
-func (m *mockAPI) GetZoneByCode(_ string, _, _ float64) (*parkster.Zone, error) {
+func (m *mockAPI) GetZoneByCode(_ string, _, _ float64, _ int) (*parkster.Zone, error) {
 	return m.getZoneByCodeResp, m.getZoneByCodeErr
 }
 
@@ -1192,12 +1192,34 @@ func TestZonesInfo_Success_Plain(t *testing.T) {
 	}
 }
 
-func TestZonesInfo_MissingLatLon_Error(t *testing.T) {
+func TestZonesInfo_NumericID_WithoutLatLon_Success(t *testing.T) {
 	setAuth(t)
 
-	_, _, err := executeCommand("zones", "info", "80500")
+	mock := &mockAPI{
+		getZoneResp: &parkster.Zone{
+			ID:       17429,
+			Name:     "Ericsson Kista",
+			ZoneCode: "80500",
+			FeeZone:  parkster.FeeZone{ID: 27545},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "info", "17429")
+	if err != nil {
+		t.Fatalf("expected success with numeric zone ID, got: %v", err)
+	}
+	if !strings.Contains(stdout, "Ericsson Kista") {
+		t.Errorf("expected zone name in output, got: %q", stdout)
+	}
+}
+
+func TestZonesInfo_NonNumericCode_MissingLatLon_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("zones", "info", "ABC123")
 	if err == nil {
-		t.Fatal("expected error for missing --lat/--lon, got nil")
+		t.Fatal("expected error for non-numeric code without --lat/--lon, got nil")
 	}
 	if !strings.Contains(err.Error(), "lat") || !strings.Contains(err.Error(), "lon") {
 		t.Errorf("expected error about lat/lon required, got: %v", err)
@@ -1216,6 +1238,7 @@ func TestZonesInfo_NotFound_Error(t *testing.T) {
 
 	mock := &mockAPI{
 		getZoneByCodeErr: errors.New("zone not found"),
+		getZoneErr:       errors.New("zone not found"),
 	}
 	withMockClient(t, mock)
 

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
@@ -28,15 +29,16 @@ Examples:
 }
 
 var zonesInfoCmd = &cobra.Command{
-	Use:   "info <zone-code>",
-	Short: "Show details for a parking zone by sign code",
-	Long: `Look up a parking zone by its sign code and show pricing, hours, and location.
+	Use:   "info <zone-code-or-id>",
+	Short: "Show details for a parking zone by sign code or ID",
+	Long: `Look up a parking zone by its sign code or numeric zone ID.
 
-Requires --lat and --lon flags because the API uses location-based search
-to resolve sign codes.
+For sign codes, --lat and --lon are required (API uses location-based search).
+For numeric zone IDs, --lat and --lon are optional.
 
 Examples:
   parkster zones info 80500 --lat 59.373 --lon 17.893
+  parkster zones info 17429
   parkster zones info 100028 --lat 52.52 --lon 13.40 --json`,
 	Args: cobra.ExactArgs(1),
 	RunE: runZonesInfo,
@@ -55,10 +57,8 @@ func init() {
 	_ = zonesSearchCmd.MarkFlagRequired("lon")
 
 	// Flags for zones info
-	zonesInfoCmd.Flags().Float64("lat", 0, "Latitude (required)")
-	zonesInfoCmd.Flags().Float64("lon", 0, "Longitude (required)")
-	_ = zonesInfoCmd.MarkFlagRequired("lat")
-	_ = zonesInfoCmd.MarkFlagRequired("lon")
+	zonesInfoCmd.Flags().Float64("lat", 0, "Latitude (required for sign code lookup)")
+	zonesInfoCmd.Flags().Float64("lon", 0, "Longitude (required for sign code lookup)")
 }
 
 func runZonesSearch(cmd *cobra.Command, args []string) error {
@@ -111,14 +111,9 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 }
 
 func runZonesInfo(cmd *cobra.Command, args []string) error {
-	zoneCode := args[0]
+	zoneInput := args[0]
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
-
-	// Validate that lat/lon are provided
-	if lat == 0 || lon == 0 {
-		return fmt.Errorf("zone code lookup requires --lat and --lon flags to search nearby zones")
-	}
 
 	// Auth
 	username, err := auth.GetUsername(cmd)
@@ -132,14 +127,32 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 
 	client := newAPIClient(username, password)
 
-	debugLog("looking up zone code %q near %.6f,%.6f", zoneCode, lat, lon)
+	// If lat/lon provided, try zone code lookup first
+	if lat != 0 && lon != 0 {
+		debugLog("looking up zone code %q near %.6f,%.6f", zoneInput, lat, lon)
+		zone, err := client.GetZoneByCode(zoneInput, lat, lon, 0)
+		if err == nil {
+			debugLog("found zone %d: %s", zone.ID, zone.Name)
+			return output.PrintSuccess(zone, OutputMode())
+		}
+		debugLog("zone code lookup failed: %v, trying as numeric ID", err)
+	}
 
-	zone, err := client.GetZoneByCode(zoneCode, lat, lon)
+	// Fallback: try parsing as numeric zone ID
+	zoneID, parseErr := strconv.Atoi(zoneInput)
+	if parseErr != nil {
+		if lat == 0 && lon == 0 {
+			return fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneInput)
+		}
+		return fmt.Errorf("zone %q not found as code or ID", zoneInput)
+	}
+
+	debugLog("looking up zone by ID %d", zoneID)
+	zone, err := client.GetZone(zoneID)
 	if err != nil {
-		return fmt.Errorf("zone lookup failed: %w", err)
+		return fmt.Errorf("zone %d not found: %w", zoneID, err)
 	}
 
 	debugLog("found zone %d: %s", zone.ID, zone.Name)
-
 	return output.PrintSuccess(zone, OutputMode())
 }

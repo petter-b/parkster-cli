@@ -54,7 +54,7 @@ func init() {
 func resolveZone(client parkster.API, zoneInput string, lat, lon float64) (*parkster.Zone, error) {
 	// If lat/lon provided, try zone code lookup first
 	if lat != 0 && lon != 0 {
-		zone, err := client.GetZoneByCode(zoneInput, lat, lon)
+		zone, err := client.GetZoneByCode(zoneInput, lat, lon, 0)
 		if err == nil {
 			return zone, nil
 		}

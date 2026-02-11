@@ -687,7 +687,7 @@ func TestGetZoneByCode_Success(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(server.URL)
-	zone, err := client.GetZoneByCode("80500", 59.404833, 17.953333)
+	zone, err := client.GetZoneByCode("80500", 59.404833, 17.953333, 0)
 	if err != nil {
 		t.Fatalf("GetZoneByCode failed: %v", err)
 	}
@@ -719,7 +719,7 @@ func TestGetZoneByCode_NotFound(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(server.URL)
-	_, err := client.GetZoneByCode("99999", 59.404833, 17.953333)
+	_, err := client.GetZoneByCode("99999", 59.404833, 17.953333, 0)
 	if err == nil {
 		t.Fatal("Expected error when zone code not found")
 	}
@@ -738,9 +738,66 @@ func TestGetZoneByCode_SearchFails(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(server.URL)
-	_, err := client.GetZoneByCode("80500", 59.404833, 17.953333)
+	_, err := client.GetZoneByCode("80500", 59.404833, 17.953333, 0)
 	if err == nil {
 		t.Fatal("Expected error when search fails")
+	}
+}
+
+func TestGetZoneByCode_DefaultRadius(t *testing.T) {
+	// Verify that passing 0 for radius uses 500m default
+	var capturedRadius string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/parking-zones/location-search":
+			capturedRadius = r.URL.Query().Get("radius")
+			_ = json.NewEncoder(w).Encode(SearchResult{
+				ParkingZonesAtPosition: []ZoneSearchItem{
+					{ID: 17429, ZoneCode: "80500"},
+				},
+			})
+		case "/parking-zones/17429":
+			_ = json.NewEncoder(w).Encode(Zone{ID: 17429, ZoneCode: "80500"})
+		}
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetZoneByCode("80500", 59.0, 18.0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedRadius != "500" {
+		t.Errorf("expected default radius 500, got %s", capturedRadius)
+	}
+}
+
+func TestGetZoneByCode_CustomRadius(t *testing.T) {
+	var capturedRadius string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/parking-zones/location-search":
+			capturedRadius = r.URL.Query().Get("radius")
+			_ = json.NewEncoder(w).Encode(SearchResult{
+				ParkingZonesAtPosition: []ZoneSearchItem{
+					{ID: 17429, ZoneCode: "80500"},
+				},
+			})
+		case "/parking-zones/17429":
+			_ = json.NewEncoder(w).Encode(Zone{ID: 17429, ZoneCode: "80500"})
+		}
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetZoneByCode("80500", 59.0, 18.0, 2000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedRadius != "2000" {
+		t.Errorf("expected radius 2000, got %s", capturedRadius)
 	}
 }
 
