@@ -48,10 +48,33 @@ func OpenKeyring() (*Store, error) {
 
 // Set stores a credential
 func (s *Store) Set(service, secret string) error {
-	return s.ring.Set(keyring.Item{
-		Key:  credentialKey(service),
-		Data: []byte(secret),
-	})
+	return s.ring.Set(itemForCredential(service, secret))
+}
+
+// itemForCredential creates a keyring.Item with proper Label and Description
+func itemForCredential(service, secret string) keyring.Item {
+	// Capitalize first letter for human-readable labels
+	label := "Parkster "
+	switch service {
+	case "username":
+		label += "Username"
+	case "password":
+		label += "Password"
+	default:
+		// Capitalize first letter: "my-api" -> "My-api"
+		if len(service) > 0 {
+			label += strings.ToUpper(service[:1]) + service[1:]
+		} else {
+			label += service
+		}
+	}
+
+	return keyring.Item{
+		Key:         credentialKey(service),
+		Data:        []byte(secret),
+		Label:       label,
+		Description: "Parkster CLI credential",
+	}
 }
 
 // Get retrieves a credential
