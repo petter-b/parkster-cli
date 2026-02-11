@@ -38,23 +38,24 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	startCmd.Flags().String("zone", "", "Parking zone code or ID (e.g., 80500, 17429)")
+	startCmd.Flags().String("zone", "", "Zone code from parking sign (e.g., 80500)")
 	startCmd.Flags().Int("duration", 30, "Parking duration in minutes")
 	startCmd.Flags().String("car", "", "License plate (auto-selects if only one car)")
 	startCmd.Flags().String("payment", "", "Payment account ID (auto-selects if only one)")
 	startCmd.Flags().Bool("dry-run", false, "Simulate parking flow without starting (shows cost estimate)")
 	startCmd.Flags().Float64("lat", 0, "Latitude for zone code lookup")
 	startCmd.Flags().Float64("lon", 0, "Longitude for zone code lookup")
+	startCmd.Flags().Int("radius", 0, "Search radius in meters for zone code lookup (default 500)")
 	_ = startCmd.MarkFlagRequired("zone")
 }
 
 // resolveZone attempts to resolve a zone from either a zone code or numeric ID.
 // If lat/lon are provided, it tries zone code lookup first via GetZoneByCode.
 // Otherwise, it tries to parse the input as a numeric ID and calls GetZone.
-func resolveZone(client parkster.API, zoneInput string, lat, lon float64) (*parkster.Zone, error) {
+func resolveZone(client parkster.API, zoneInput string, lat, lon float64, radiusMeters int) (*parkster.Zone, error) {
 	// If lat/lon provided, try zone code lookup first
 	if lat != 0 && lon != 0 {
-		zone, err := client.GetZoneByCode(zoneInput, lat, lon, 0)
+		zone, err := client.GetZoneByCode(zoneInput, lat, lon, radiusMeters)
 		if err == nil {
 			return zone, nil
 		}
@@ -86,6 +87,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
+	radius, _ := cmd.Flags().GetInt("radius")
 
 	username, err := auth.GetUsername(cmd)
 	if err != nil {
@@ -155,7 +157,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// Resolve zone (by code or ID)
 	debugLog("resolving zone: %s", zoneInput)
-	zone, err := resolveZone(client, zoneInput, lat, lon)
+	zone, err := resolveZone(client, zoneInput, lat, lon, radius)
 	if err != nil {
 		return err
 	}

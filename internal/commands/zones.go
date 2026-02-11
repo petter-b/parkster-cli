@@ -2,12 +2,37 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 )
+
+// exitFunc allows tests to override os.Exit behavior
+var exitFunc = os.Exit
+
+// helpShownSentinel is a special error used in tests to indicate help was shown
+type helpShownSentinel struct{}
+
+func (h helpShownSentinel) Error() string { return "help shown" }
+
+// ExactArgsOrHelp wraps cobra.ExactArgs but intercepts "help" as first arg
+// to show the command's help text. This allows "zones info help" to work
+// in addition to the standard "zones info --help".
+func ExactArgsOrHelp(n int) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == 1 && args[0] == "help" {
+			cmd.HelpFunc()(cmd, args)
+			exitFunc(0)
+			// In tests, exitFunc doesn't actually exit, so we return a sentinel error
+			// to prevent the command from executing
+			return helpShownSentinel{}
+		}
+		return cobra.ExactArgs(n)(cmd, args)
+	}
+}
 
 var zonesCmd = &cobra.Command{
 	Use:   "zones",
@@ -29,18 +54,17 @@ Examples:
 }
 
 var zonesInfoCmd = &cobra.Command{
-	Use:   "info <zone-code-or-id>",
-	Short: "Show details for a parking zone by sign code or ID",
-	Long: `Look up a parking zone by its sign code or numeric zone ID.
+	Use:   "info <zone-code>",
+	Short: "Show details for a parking zone by sign code",
+	Long: `Look up a parking zone by its sign code (the code on the parking sign).
 
-For sign codes, --lat and --lon are required (API uses location-based search).
-For numeric zone IDs, --lat and --lon are optional.
+Requires --lat and --lon flags to search for the zone code near your location.
+Numeric zone IDs are also accepted as a fallback but are deprecated.
 
 Examples:
   parkster zones info 80500 --lat 59.373 --lon 17.893
-  parkster zones info 17429
   parkster zones info 100028 --lat 52.52 --lon 13.40 --json`,
-	Args: cobra.ExactArgs(1),
+	Args: ExactArgsOrHelp(1),
 	RunE: runZonesInfo,
 }
 

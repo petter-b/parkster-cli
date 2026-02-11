@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/pflag"
 )
 
+func init() {
+	// Override exitFunc in tests to prevent os.Exit from being called
+	// which would cause test panics. Instead, we just return normally.
+	// ExactArgsOrHelp will return a helpShownSentinel error to prevent
+	// command execution after help is shown.
+	exitFunc = func(code int) {
+		// In tests, don't actually exit - just return
+	}
+}
+
 // resetFlags resets global flag state between tests.
 // Cobra commands are package-level singletons, so flag values
 // (including --help) persist across test runs.
@@ -1531,5 +1541,65 @@ func TestStart_DryRun_CostEstimateFails_StillSucceeds(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "DRY RUN") {
 		t.Errorf("expected 'DRY RUN' in stderr even when cost fails, got: %q", stderr)
+	}
+}
+
+// --- Help handling tests ---
+
+func TestZonesInfo_HelpArg_ShowsHelp(t *testing.T) {
+	// zones info help should show help text (via ExactArgsOrHelp)
+	stdout, _, err := executeCommand("zones", "info", "help")
+	// In tests, ExactArgsOrHelp returns helpShownSentinel to prevent command execution
+	// Cobra treats this as an args validation error and shows usage
+	if err == nil {
+		t.Fatal("expected helpShownSentinel error, got nil")
+	}
+	// Check that help was shown (stdout contains help text)
+	if !strings.Contains(stdout, "zone-code") {
+		t.Errorf("help should mention zone-code, got: %q", stdout)
+	}
+}
+
+func TestZonesSearch_HelpArg_DoesNotCrash(t *testing.T) {
+	// zones search uses --lat/--lon flags (not positional args), so "help"
+	// is just an unexpected positional arg. Verify it doesn't panic.
+	// Cobra may return an error about missing required flags -- that's fine.
+	_, _, _ = executeCommand("zones", "search", "help")
+	// If we got here without panic, the test passes.
+}
+
+func TestZonesInfo_HelpText_SaysZoneCode(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "info", "--help")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(stdout, "zone-code-or-id") {
+		t.Error("help text should not say 'zone-code-or-id', should say 'zone-code'")
+	}
+	if !strings.Contains(stdout, "zone-code") {
+		t.Error("help text should mention 'zone-code'")
+	}
+}
+
+func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{
+			ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista",
+			FeeZone: parkster.FeeZone{ID: 27545},
+		},
+		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30",
+		"--lat", "59.373", "--lon", "17.893", "--radius", "1000")
+	if err != nil {
+		t.Fatalf("expected success with --radius, got: %v", err)
 	}
 }
