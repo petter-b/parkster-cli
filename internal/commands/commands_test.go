@@ -1004,7 +1004,7 @@ func TestStatus_LoginFails_Error(t *testing.T) {
 
 func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
-	// No password env needed -- auth status only checks username
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
 
 	stdout, _, err := executeCommand("auth", "status")
 	if err != nil {
@@ -1036,6 +1036,7 @@ func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
 
 func TestAuthStatus_JSON_Envelope(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
 	if err != nil {
