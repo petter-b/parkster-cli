@@ -201,6 +201,49 @@ func GetPassword(cmd *cobra.Command) (string, error) {
 	return password, nil
 }
 
+// GetCredentials retrieves both username and password, opening the keyring at most once.
+// Priority: CLI flags > env vars > keyring.
+func GetCredentials(cmd *cobra.Command) (username, password string, err error) {
+	// 1. Check CLI flags
+	if cmd != nil {
+		username, _ = cmd.Flags().GetString("username")
+		password, _ = cmd.Flags().GetString("password")
+	}
+
+	// 2. Fill from env vars
+	if username == "" {
+		username = os.Getenv("PARKSTER_USERNAME")
+	}
+	if password == "" {
+		password = os.Getenv("PARKSTER_PASSWORD")
+	}
+
+	// 3. If either still missing, try keyring (open once)
+	if username == "" || password == "" {
+		store, kerr := OpenKeyring()
+		if kerr != nil {
+			if username == "" {
+				return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+			}
+			return "", "", fmt.Errorf("no credentials found (use --password flag, PARKSTER_PASSWORD env var, or 'parkster auth login')")
+		}
+		if username == "" {
+			username, err = store.Get("username")
+			if err != nil {
+				return "", "", fmt.Errorf("no credentials found (use --username flag, PARKSTER_USERNAME env var, or 'parkster auth login')")
+			}
+		}
+		if password == "" {
+			password, err = store.Get("password")
+			if err != nil {
+				return "", "", fmt.Errorf("no credentials found (use --password flag, PARKSTER_PASSWORD env var, or 'parkster auth login')")
+			}
+		}
+	}
+
+	return username, password, nil
+}
+
 // SaveCredentials stores username and password in keyring
 func SaveCredentials(username, password string) error {
 	store, err := OpenKeyring()

@@ -89,11 +89,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	lon, _ := cmd.Flags().GetFloat64("lon")
 	radius, _ := cmd.Flags().GetInt("radius")
 
-	username, err := auth.GetUsername(cmd)
-	if err != nil {
-		return fmt.Errorf("authentication required: %w", err)
-	}
-	password, err := auth.GetPassword(cmd)
+	username, password, err := auth.GetCredentials(cmd)
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}
