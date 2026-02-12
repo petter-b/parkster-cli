@@ -1,10 +1,10 @@
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/99designs/keyring"
 	"github.com/spf13/cobra"
@@ -12,13 +12,14 @@ import (
 
 const serviceName = "parkster"
 
-// Store wraps keyring operations
-type Store struct {
-	ring keyring.Keyring
+// credentials holds username and password as a single JSON blob for keychain storage.
+type credentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // OpenKeyring opens the OS keychain
-func OpenKeyring() (*Store, error) {
+func OpenKeyring() (keyring.Keyring, error) {
 	// Determine file backend path for headless Linux
 	fileDir := filepath.Join(configDir(), "credentials")
 
@@ -43,52 +44,7 @@ func OpenKeyring() (*Store, error) {
 		return nil, fmt.Errorf("failed to open keyring: %w", err)
 	}
 
-	return &Store{ring: ring}, nil
-}
-
-// Set stores a credential
-func (s *Store) Set(service, secret string) error {
-	return s.ring.Set(itemForCredential(service, secret))
-}
-
-// itemForCredential creates a keyring.Item with proper Label and Description
-func itemForCredential(service, secret string) keyring.Item {
-	// Capitalize first letter for human-readable labels
-	label := "Parkster "
-	switch service {
-	case "username":
-		label += "Username"
-	case "password":
-		label += "Password"
-	default:
-		// Capitalize first letter: "my-api" -> "My-api"
-		if len(service) > 0 {
-			label += strings.ToUpper(service[:1]) + service[1:]
-		} else {
-			label += service
-		}
-	}
-
-	return keyring.Item{
-		Key:         credentialKey(service),
-		Data:        []byte(secret),
-		Label:       label,
-		Description: "Parkster CLI credential",
-	}
-}
-
-// Get retrieves a credential
-func (s *Store) Get(service string) (string, error) {
-	item, err := s.ring.Get(credentialKey(service))
-	if err != nil {
-		return "", err
-	}
-	return string(item.Data), nil
-}
-
-// Delete removes a credential
-func (s *Store) Delete(service string) error {
-	return s.ring.Remove(credentialKey(service))
+	return ring, nil
 }
 
 // credentialKey returns the keyring key for a service
@@ -122,59 +78,59 @@ func GetCredentials(cmd *cobra.Command) (username, password string, err error) {
 		password = os.Getenv("PARKSTER_PASSWORD")
 	}
 
-	// 3. If either still missing, try keyring (open once)
+	// 3. If either still missing, try keyring (single item read)
 	if username == "" || password == "" {
-		store, kerr := OpenKeyring()
+		ring, kerr := OpenKeyring()
 		if kerr != nil {
-			if username == "" {
-				return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
-			}
-			return "", "", fmt.Errorf("no credentials found (use --password flag, PARKSTER_PASSWORD env var, or 'parkster auth login')")
+			return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+		}
+		item, err := ring.Get(credentialKey("credentials"))
+		if err != nil {
+			return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+		}
+		var creds credentials
+		if err := json.Unmarshal(item.Data, &creds); err != nil {
+			return "", "", fmt.Errorf("corrupted credentials: run 'parkster auth login' to re-store")
 		}
 		if username == "" {
-			username, err = store.Get("username")
-			if err != nil {
-				return "", "", fmt.Errorf("no credentials found (use --username flag, PARKSTER_USERNAME env var, or 'parkster auth login')")
-			}
+			username = creds.Username
 		}
 		if password == "" {
-			password, err = store.Get("password")
-			if err != nil {
-				return "", "", fmt.Errorf("no credentials found (use --password flag, PARKSTER_PASSWORD env var, or 'parkster auth login')")
-			}
+			password = creds.Password
 		}
 	}
 
 	return username, password, nil
 }
 
-// SaveCredentials stores username and password in keyring
+// SaveCredentials stores username and password as a single JSON item in keyring
 func SaveCredentials(username, password string) error {
-	store, err := OpenKeyring()
+	ring, err := OpenKeyring()
 	if err != nil {
 		return fmt.Errorf("failed to open keyring: %w", err)
 	}
-
-	if err := store.Set("username", username); err != nil {
-		return fmt.Errorf("failed to store username: %w", err)
+	creds := credentials{Username: username, Password: password}
+	data, err := json.Marshal(creds)
+	if err != nil {
+		return fmt.Errorf("failed to encode credentials: %w", err)
 	}
-
-	if err := store.Set("password", password); err != nil {
-		return fmt.Errorf("failed to store password: %w", err)
-	}
-
-	return nil
+	return ring.Set(keyring.Item{
+		Key:         credentialKey("credentials"),
+		Data:        data,
+		Label:       "Parkster Credentials",
+		Description: "Parkster CLI credential",
+	})
 }
 
-// DeleteCredentials removes username and password from keyring
+// DeleteCredentials removes credentials from keyring
 func DeleteCredentials() error {
-	store, err := OpenKeyring()
+	ring, err := OpenKeyring()
 	if err != nil {
 		return fmt.Errorf("failed to open keyring: %w", err)
 	}
-
-	_ = store.Delete("username") // Ignore errors
-	_ = store.Delete("password") // Ignore errors
-
+	_ = ring.Remove(credentialKey("credentials"))
+	// Clean up legacy separate items
+	_ = ring.Remove(credentialKey("username"))
+	_ = ring.Remove(credentialKey("password"))
 	return nil
 }
