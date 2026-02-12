@@ -22,7 +22,7 @@ var rootCmd = &cobra.Command{
 	Long: `parkster is a command-line tool for managing Parkster parking sessions.
 
 Features:
-- Start, stop, and extend parking sessions
+- Start, stop, and change parking sessions
 - View active parking status
 - JSON output for AI agent integration
 - Secure credential storage via OS keychain`,

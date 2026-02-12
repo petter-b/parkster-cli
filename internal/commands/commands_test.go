@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
@@ -105,13 +106,16 @@ func TestHelp_StopCommand(t *testing.T) {
 	}
 }
 
-func TestHelp_ExtendCommand(t *testing.T) {
-	stdout, _, err := executeCommand("extend", "--help")
+func TestHelp_ChangeCommand(t *testing.T) {
+	stdout, _, err := executeCommand("change", "--help")
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if !strings.Contains(stdout, "--minutes") {
-		t.Error("extend help should show --minutes flag")
+	if !strings.Contains(stdout, "--duration") {
+		t.Error("change help should show --duration flag")
+	}
+	if !strings.Contains(stdout, "--until") {
+		t.Error("change help should show --until flag")
 	}
 }
 
@@ -189,10 +193,50 @@ func TestStart_MissingZone_ErrorJSON(t *testing.T) {
 	}
 }
 
-func TestExtend_MissingMinutes_Error(t *testing.T) {
-	_, _, err := executeCommand("extend")
+func TestChange_NeitherDurationNorUntil_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, CheckInTime: time.Now().UnixMilli(), TimeoutTime: time.Now().Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change")
 	if err == nil {
-		t.Error("extend without --minutes should return error")
+		t.Fatal("expected error when neither --duration nor --until specified")
+	}
+}
+
+func TestChange_BothDurationAndUntil_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("change", "--duration", "30", "--until", "23:00")
+	if err == nil {
+		t.Fatal("expected error when both --duration and --until specified")
+	}
+}
+
+func TestChange_UntilInvalid_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, TimeoutTime: time.Now().Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--until", "not-a-time")
+	if err == nil {
+		t.Fatal("expected error for invalid --until format")
 	}
 }
 
@@ -673,29 +717,59 @@ func TestStop_StopParkingFails_Error(t *testing.T) {
 	}
 }
 
-// --- Extend command tests ---
+// --- Change command tests ---
 
-func TestExtend_SingleParking_Success(t *testing.T) {
+func TestChange_Duration_Success(t *testing.T) {
 	setAuth(t)
+
+	now := time.Now()
+	currentEnd := now.Add(30 * time.Minute)
 
 	mock := &mockAPI{
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, CheckInTime: 1707400000000, TimeoutTime: 1707401800000},
+				{ID: 500, CheckInTime: now.Add(-10 * time.Minute).UnixMilli(), TimeoutTime: currentEnd.UnixMilli()},
 			},
 		},
-		extendResp: &parkster.Parking{ID: 500, TimeoutTime: 1707403600000},
+		extendResp: &parkster.Parking{ID: 500, TimeoutTime: now.Add(60 * time.Minute).UnixMilli()},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("extend", "--minutes", "30")
+	// --duration 60 means "set end time to now + 60 minutes"
+	_, _, err := executeCommand("change", "--duration", "60")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
 }
 
-func TestExtend_NoParkings_Message(t *testing.T) {
+func TestChange_Until_Success(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	currentEnd := now.Add(30 * time.Minute)
+	// Use a time 2 hours from now to ensure it's in the future
+	untilTime := now.Add(2 * time.Hour)
+	untilStr := untilTime.Format("15:04")
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, CheckInTime: now.Add(-10 * time.Minute).UnixMilli(), TimeoutTime: currentEnd.UnixMilli()},
+			},
+		},
+		extendResp: &parkster.Parking{ID: 500, TimeoutTime: untilTime.UnixMilli()},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--until", untilStr)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+}
+
+func TestChange_NoParkings_Message(t *testing.T) {
 	setAuth(t)
 
 	mock := &mockAPI{
@@ -706,7 +780,7 @@ func TestExtend_NoParkings_Message(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("extend", "--minutes", "30")
+	stdout, _, err := executeCommand("change", "--duration", "30")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -715,7 +789,7 @@ func TestExtend_NoParkings_Message(t *testing.T) {
 	}
 }
 
-func TestExtend_MultipleParkingsWithoutFlag_Error(t *testing.T) {
+func TestChange_MultipleParkingsWithoutFlag_Error(t *testing.T) {
 	setAuth(t)
 
 	mock := &mockAPI{
@@ -729,7 +803,7 @@ func TestExtend_MultipleParkingsWithoutFlag_Error(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("extend", "--minutes", "30")
+	_, _, err := executeCommand("change", "--duration", "30")
 	if err == nil {
 		t.Fatal("expected error for multiple parkings without flag, got nil")
 	}
@@ -738,7 +812,7 @@ func TestExtend_MultipleParkingsWithoutFlag_Error(t *testing.T) {
 	}
 }
 
-func TestExtend_ParkingIDNotFound_Error(t *testing.T) {
+func TestChange_ParkingIDNotFound_Error(t *testing.T) {
 	setAuth(t)
 
 	mock := &mockAPI{
@@ -751,7 +825,7 @@ func TestExtend_ParkingIDNotFound_Error(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("extend", "--minutes", "30", "--parking-id", "999")
+	_, _, err := executeCommand("change", "--duration", "30", "--parking-id", "999")
 	if err == nil {
 		t.Fatal("expected error for parking ID not found, got nil")
 	}
@@ -760,26 +834,27 @@ func TestExtend_ParkingIDNotFound_Error(t *testing.T) {
 	}
 }
 
-func TestExtend_ExtendParkingFails_Error(t *testing.T) {
+func TestChange_ChangeParkingFails_Error(t *testing.T) {
 	setAuth(t)
 
+	now := time.Now()
 	mock := &mockAPI{
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500},
+				{ID: 500, TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
 			},
 		},
 		extendErr: errors.New("server error"),
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("extend", "--minutes", "30")
+	_, _, err := executeCommand("change", "--duration", "60")
 	if err == nil {
 		t.Fatal("expected error when ExtendParking fails, got nil")
 	}
-	if !strings.Contains(err.Error(), "failed to extend parking") {
-		t.Errorf("expected 'failed to extend parking' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to change parking") {
+		t.Errorf("expected 'failed to change parking' in error, got: %v", err)
 	}
 }
 
