@@ -16,6 +16,9 @@ GOTEST := $(GOCMD) test
 GOGET := $(GOCMD) get
 GOMOD := $(GOCMD) mod
 
+# Code signing (macOS only — set via env or make arg)
+CODESIGN_IDENTITY ?= $(SIGN_IDENTITY)
+
 # Directories
 BIN_DIR := ./bin
 CMD_DIR := ./cmd/parkster
@@ -28,6 +31,10 @@ build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BIN_DIR)
 	$(GOBUILD) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY_NAME) $(CMD_DIR)
+	@if [ -n "$(CODESIGN_IDENTITY)" ] && command -v codesign >/dev/null 2>&1; then \
+		echo "Signing $(BIN_DIR)/$(BINARY_NAME)..."; \
+		codesign -s "$(CODESIGN_IDENTITY)" -f $(BIN_DIR)/$(BINARY_NAME); \
+	fi
 	@echo "Binary: $(BIN_DIR)/$(BINARY_NAME)"
 
 ## install: Install to $GOPATH/bin
