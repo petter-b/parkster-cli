@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -73,13 +72,7 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid longitude: must be between -180 and 180")
 	}
 
-	// Auth
-	username, password, err := auth.GetCredentials(cmd)
-	if err != nil {
-		return fmt.Errorf("authentication required: %w", err)
-	}
-
-	client := newAPIClient(username, password)
+	client := newAPIClient("", "")
 
 	debugLog("searching zones at %.6f,%.6f with radius %dm", lat, lon, radius)
 
@@ -110,13 +103,7 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
 
-	// Auth
-	username, password, err := auth.GetCredentials(cmd)
-	if err != nil {
-		return fmt.Errorf("authentication required: %w", err)
-	}
-
-	client := newAPIClient(username, password)
+	client := newAPIClient("", "")
 
 	// If lat/lon provided, try zone code lookup first
 	if lat != 0 && lon != 0 {

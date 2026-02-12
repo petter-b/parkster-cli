@@ -926,6 +926,40 @@ func TestAuthStatus_JSON_Envelope(t *testing.T) {
 	}
 }
 
+// --- Zones no-auth tests ---
+
+func TestZonesSearch_NoAuth_Success(t *testing.T) {
+	// Do NOT call setAuth — no PARKSTER_USERNAME/PASSWORD set
+	// Zone commands should work without credentials
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("zones search should work without auth, got: %v", err)
+	}
+}
+
+func TestZonesInfo_NoAuth_Success(t *testing.T) {
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{
+			ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500",
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("zones info should work without auth, got: %v", err)
+	}
+}
+
 // --- Zones command tests ---
 
 func TestHelp_ZonesCommand(t *testing.T) {
@@ -942,8 +976,6 @@ func TestHelp_ZonesCommand(t *testing.T) {
 }
 
 func TestZonesSearch_Success(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		searchZonesResp: &parkster.SearchResult{
 			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
@@ -969,8 +1001,6 @@ func TestZonesSearch_Success(t *testing.T) {
 }
 
 func TestZonesSearch_Success_JSON(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		searchZonesResp: &parkster.SearchResult{
 			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
@@ -999,8 +1029,6 @@ func TestZonesSearch_Success_JSON(t *testing.T) {
 }
 
 func TestZonesSearch_NoResults(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		searchZonesResp: &parkster.SearchResult{
 			ParkingZonesAtPosition:     []parkster.ZoneSearchItem{},
@@ -1019,8 +1047,6 @@ func TestZonesSearch_NoResults(t *testing.T) {
 }
 
 func TestZonesSearch_NoResults_JSON(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		searchZonesResp: &parkster.SearchResult{
 			ParkingZonesAtPosition:     []parkster.ZoneSearchItem{},
@@ -1056,8 +1082,6 @@ func TestZonesSearch_MissingLatLon_Error(t *testing.T) {
 }
 
 func TestZonesSearch_InvalidCoordinates_Error(t *testing.T) {
-	setAuth(t)
-
 	_, _, err := executeCommand("zones", "search", "--lat", "999", "--lon", "17.893")
 	if err == nil {
 		t.Fatal("expected error for invalid latitude, got nil")
@@ -1068,8 +1092,6 @@ func TestZonesSearch_InvalidCoordinates_Error(t *testing.T) {
 }
 
 func TestZonesSearch_SearchFails_Error(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		searchZonesErr: errors.New("search failed"),
 	}
@@ -1085,8 +1107,6 @@ func TestZonesSearch_SearchFails_Error(t *testing.T) {
 }
 
 func TestZonesSearch_CustomRadius(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		searchZonesResp: &parkster.SearchResult{
 			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
@@ -1105,8 +1125,6 @@ func TestZonesSearch_CustomRadius(t *testing.T) {
 // --- Zones info command tests ---
 
 func TestZonesInfo_Success(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		getZoneByCodeResp: &parkster.Zone{
 			ID:       80500,
@@ -1137,8 +1155,6 @@ func TestZonesInfo_Success(t *testing.T) {
 }
 
 func TestZonesInfo_Success_JSON(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		getZoneByCodeResp: &parkster.Zone{
 			ID:       80500,
@@ -1172,8 +1188,6 @@ func TestZonesInfo_Success_JSON(t *testing.T) {
 }
 
 func TestZonesInfo_Success_Plain(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		getZoneByCodeResp: &parkster.Zone{
 			ID:       80500,
@@ -1194,8 +1208,6 @@ func TestZonesInfo_Success_Plain(t *testing.T) {
 }
 
 func TestZonesInfo_NumericID_WithoutLatLon_Success(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		getZoneResp: &parkster.Zone{
 			ID:       17429,
@@ -1216,8 +1228,6 @@ func TestZonesInfo_NumericID_WithoutLatLon_Success(t *testing.T) {
 }
 
 func TestZonesInfo_NonNumericCode_MissingLatLon_Error(t *testing.T) {
-	setAuth(t)
-
 	_, _, err := executeCommand("zones", "info", "ABC123")
 	if err == nil {
 		t.Fatal("expected error for non-numeric code without --lat/--lon, got nil")
@@ -1235,8 +1245,6 @@ func TestZonesInfo_MissingArg_Error(t *testing.T) {
 }
 
 func TestZonesInfo_NotFound_Error(t *testing.T) {
-	setAuth(t)
-
 	mock := &mockAPI{
 		getZoneByCodeErr: errors.New("zone not found"),
 		getZoneErr:       errors.New("zone not found"),
@@ -1249,25 +1257,6 @@ func TestZonesInfo_NotFound_Error(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "zone") {
 		t.Errorf("expected 'zone' in error message, got: %v", err)
-	}
-}
-
-func TestZonesInfo_AuthFails_Error(t *testing.T) {
-	// When no env vars are set, auth.GetUsername(nil) falls through to keyring
-	// which can block on macOS waiting for Keychain access prompt.
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: macOS Keychain may block in test environment")
-	}
-
-	t.Setenv("PARKSTER_USERNAME", "")
-	t.Setenv("PARKSTER_PASSWORD", "")
-
-	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893")
-	if err == nil {
-		t.Fatal("expected auth error, got nil")
-	}
-	if !strings.Contains(err.Error(), "authentication") {
-		t.Errorf("expected 'authentication' in error, got: %v", err)
 	}
 }
 
