@@ -2,37 +2,12 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 )
-
-// exitFunc allows tests to override os.Exit behavior
-var exitFunc = os.Exit
-
-// helpShownSentinel is a special error used in tests to indicate help was shown
-type helpShownSentinel struct{}
-
-func (h helpShownSentinel) Error() string { return "help shown" }
-
-// ExactArgsOrHelp wraps cobra.ExactArgs but intercepts "help" as first arg
-// to show the command's help text. This allows "zones info help" to work
-// in addition to the standard "zones info --help".
-func ExactArgsOrHelp(n int) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if len(args) == 1 && args[0] == "help" {
-			cmd.HelpFunc()(cmd, args)
-			exitFunc(0)
-			// In tests, exitFunc doesn't actually exit, so we return a sentinel error
-			// to prevent the command from executing
-			return helpShownSentinel{}
-		}
-		return cobra.ExactArgs(n)(cmd, args)
-	}
-}
 
 var zonesCmd = &cobra.Command{
 	Use:   "zones",
@@ -64,7 +39,7 @@ Numeric zone IDs are also accepted as a fallback but are deprecated.
 Examples:
   parkster zones info 80500 --lat 59.373 --lon 17.893
   parkster zones info 100028 --lat 52.52 --lon 13.40 --json`,
-	Args: ExactArgsOrHelp(1),
+	Args: cobra.ExactArgs(1),
 	RunE: runZonesInfo,
 }
 
@@ -76,7 +51,7 @@ func init() {
 	// Flags for zones search
 	zonesSearchCmd.Flags().Float64("lat", 0, "Latitude (required)")
 	zonesSearchCmd.Flags().Float64("lon", 0, "Longitude (required)")
-	zonesSearchCmd.Flags().Int("radius", 250, "Search radius in meters")
+	zonesSearchCmd.Flags().Int("radius", 0, "Search radius in meters (0 = API default)")
 	_ = zonesSearchCmd.MarkFlagRequired("lat")
 	_ = zonesSearchCmd.MarkFlagRequired("lon")
 
