@@ -1,0 +1,100 @@
+package output
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/petter-b/parkster-cli/internal/parkster"
+)
+
+// formatTime formats a unix millisecond timestamp as "Today at HH:MM" or "YYYY-MM-DD HH:MM"
+func formatTime(ms int64) string {
+	t := time.UnixMilli(ms)
+	now := time.Now()
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return "Today at " + t.Format("15:04")
+	}
+	return t.Format("2006-01-02 15:04")
+}
+
+// formatRemaining returns a human-friendly remaining duration like "2h 09m remaining"
+func formatRemaining(ms int64) string {
+	remaining := time.Until(time.UnixMilli(ms))
+	if remaining <= 0 {
+		return "expired"
+	}
+	hours := int(remaining.Hours())
+	minutes := int(remaining.Minutes()) % 60
+	if hours > 0 {
+		return fmt.Sprintf("%dh %02dm remaining", hours, minutes)
+	}
+	return fmt.Sprintf("%dm remaining", minutes)
+}
+
+// formatCar returns "Name - Plate" or just "Plate" if no personalization
+func formatCar(car parkster.Car) string {
+	if car.CarPersonalization.Name != "" {
+		return car.CarPersonalization.Name + " - " + car.LicenseNbr
+	}
+	return car.LicenseNbr
+}
+
+// formatZone returns "ZoneCode ZoneName"
+func formatZone(zone parkster.Zone) string {
+	return zone.ZoneCode + " " + zone.Name
+}
+
+// formatCost returns "Amount CurrencyCode" (e.g. "0 SEK")
+func formatCost(cost float64, currency parkster.Currency) string {
+	code := currency.Code
+	if code == "" {
+		code = "?"
+	}
+	if cost == 0 {
+		return "0 " + code
+	}
+	return fmt.Sprintf("%.2f %s", cost, code)
+}
+
+// FormatParking formats a parking for status display (full details)
+func FormatParking(p parkster.Parking) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Zone:       %s\n", formatZone(p.ParkingZone))
+	fmt.Fprintf(&b, "Car:        %s\n", formatCar(p.Car))
+	fmt.Fprintf(&b, "Valid from: %s\n", formatTime(p.CheckInTime))
+	fmt.Fprintf(&b, "Ends at:    %s (%s)\n", formatTime(p.TimeoutTime), formatRemaining(p.TimeoutTime))
+	fmt.Fprintf(&b, "Cost:       %s", formatCost(p.Cost, p.Currency))
+	return b.String()
+}
+
+// FormatParkingStopped formats a parking after it was stopped
+func FormatParkingStopped(p parkster.Parking) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Zone:       %s\n", formatZone(p.ParkingZone))
+	fmt.Fprintf(&b, "Car:        %s\n", formatCar(p.Car))
+	fmt.Fprintf(&b, "Cost:       %s", formatCost(p.Cost, p.Currency))
+	return b.String()
+}
+
+// FormatParkingChanged formats a parking after its end time was changed
+func FormatParkingChanged(p parkster.Parking) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Zone:       %s\n", formatZone(p.ParkingZone))
+	fmt.Fprintf(&b, "Car:        %s\n", formatCar(p.Car))
+	fmt.Fprintf(&b, "Ends at:    %s (%s)\n", formatTime(p.TimeoutTime), formatRemaining(p.TimeoutTime))
+	fmt.Fprintf(&b, "Cost:       %s", formatCost(p.Cost, p.Currency))
+	return b.String()
+}
+
+// FormatParkingList formats multiple parkings for status display
+func FormatParkingList(parkings []parkster.Parking) string {
+	var b strings.Builder
+	for i, p := range parkings {
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(FormatParking(p))
+	}
+	return b.String()
+}

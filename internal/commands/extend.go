@@ -128,5 +128,11 @@ func runChange(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to change parking: %w", err)
 	}
 
-	return output.PrintSuccess(parking, OutputMode())
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(parking, mode)
+	}
+	fmt.Println("Parking changed")
+	fmt.Println(output.FormatParkingChanged(*parking))
+	return nil
 }

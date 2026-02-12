@@ -50,5 +50,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	return output.PrintSuccess(parkings, OutputMode())
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(parkings, mode)
+	}
+	fmt.Println(output.FormatParkingList(parkings))
+	return nil
 }

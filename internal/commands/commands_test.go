@@ -342,20 +342,31 @@ func setAuth(t *testing.T) {
 func TestStart_SingleCarSinglePayment_Success(t *testing.T) {
 	setAuth(t)
 
+	now := time.Now()
 	mock := &mockAPI{
 		loginResp: &parkster.User{
 			ID:              1,
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{
+			ID:          999,
+			ParkingZone: parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{ID: 100, LicenseNbr: "ABC123"},
+			CheckInTime: now.UnixMilli(),
+			TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "Parking started") {
+		t.Errorf("expected 'Parking started' in output, got: %q", stdout)
 	}
 }
 
@@ -573,13 +584,21 @@ func TestStop_SingleActiveParking_Success(t *testing.T) {
 				{ID: 500},
 			},
 		},
-		stopParkingResp: &parkster.Parking{ID: 500},
+		stopParkingResp: &parkster.Parking{
+			ID:          500,
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("stop")
+	stdout, _, err := executeCommand("stop")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "Parking stopped") {
+		t.Errorf("expected 'Parking stopped' in output, got: %q", stdout)
 	}
 }
 
@@ -732,14 +751,23 @@ func TestChange_Duration_Success(t *testing.T) {
 				{ID: 500, CheckInTime: now.Add(-10 * time.Minute).UnixMilli(), TimeoutTime: currentEnd.UnixMilli()},
 			},
 		},
-		extendResp: &parkster.Parking{ID: 500, TimeoutTime: now.Add(60 * time.Minute).UnixMilli()},
+		extendResp: &parkster.Parking{
+			ID:          500,
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			TimeoutTime: now.Add(60 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
 	}
 	withMockClient(t, mock)
 
 	// --duration 60 means "set end time to now + 60 minutes"
-	_, _, err := executeCommand("change", "--duration", "60")
+	stdout, _, err := executeCommand("change", "--duration", "60")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "Parking changed") {
+		t.Errorf("expected 'Parking changed' in output, got: %q", stdout)
 	}
 }
 
@@ -913,19 +941,26 @@ func TestStatus_NoParkings_JSON_EmptyArray(t *testing.T) {
 func TestStatus_HasParkings_PrintsThem(t *testing.T) {
 	setAuth(t)
 
+	now := time.Now()
 	mock := &mockAPI{
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
 				{
-					ID:  500,
-					Car: parkster.Car{ID: 100, LicenseNbr: "ABC123"},
-					ParkingZone: parkster.Zone{
-						ID:   17429,
-						Name: "Ericsson Kista",
+					ID: 500,
+					Car: parkster.Car{
+						ID:                 100,
+						LicenseNbr:         "ABC123",
+						CarPersonalization: parkster.CarPersonalization{Name: "Volvo"},
 					},
-					CheckInTime: 1707400000000,
-					TimeoutTime: 1707401800000,
+					ParkingZone: parkster.Zone{
+						ID:       17429,
+						Name:     "Ericsson Kista",
+						ZoneCode: "80500",
+					},
+					CheckInTime: now.Add(-30 * time.Minute).UnixMilli(),
+					TimeoutTime: now.Add(60 * time.Minute).UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK", Symbol: "kr"},
 				},
 			},
 		},
@@ -936,9 +971,15 @@ func TestStatus_HasParkings_PrintsThem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	// Verify parking data appears in output (human output format may change in Task 8)
-	if !strings.Contains(stdout, "500") {
-		t.Errorf("expected parking ID 500 in output, got: %q", stdout)
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code 80500 in output, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "ABC123") {
+		t.Errorf("expected license plate in output, got: %q", stdout)
+	}
+	// Should NOT show internal IDs
+	if strings.Contains(stdout, "17429") {
+		t.Errorf("should not show zone ID in human output, got: %q", stdout)
 	}
 }
 

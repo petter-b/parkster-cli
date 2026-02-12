@@ -1,0 +1,153 @@
+package output
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/petter-b/parkster-cli/internal/parkster"
+)
+
+func TestFormatParking_Status(t *testing.T) {
+	now := time.Now()
+	parking := parkster.Parking{
+		ID: 500,
+		ParkingZone: parkster.Zone{
+			ID:       17429,
+			Name:     "Ericsson, Kista",
+			ZoneCode: "80500",
+		},
+		Car: parkster.Car{
+			ID:                 100,
+			LicenseNbr:         "ABC123",
+			CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"},
+		},
+		CheckInTime: now.Add(-30 * time.Minute).UnixMilli(),
+		TimeoutTime: now.Add(2*time.Hour + 9*time.Minute).UnixMilli(),
+		Cost:        0,
+		Currency:    parkster.Currency{Code: "SEK", Symbol: "kr"},
+	}
+
+	out := FormatParking(parking)
+
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected zone code '80500' in output, got: %q", out)
+	}
+	if !strings.Contains(out, "Ericsson, Kista") {
+		t.Errorf("expected zone name in output, got: %q", out)
+	}
+	if !strings.Contains(out, "Volkswagen") {
+		t.Errorf("expected car name in output, got: %q", out)
+	}
+	if !strings.Contains(out, "ABC123") {
+		t.Errorf("expected license plate in output, got: %q", out)
+	}
+	if !strings.Contains(out, "SEK") && !strings.Contains(out, "kr") {
+		t.Errorf("expected currency in output, got: %q", out)
+	}
+	// Should NOT contain internal IDs
+	if strings.Contains(out, "17429") {
+		t.Errorf("should not contain zone ID 17429 in human output, got: %q", out)
+	}
+	if strings.Contains(out, " 500") {
+		t.Errorf("should not contain parking ID 500 in human output, got: %q", out)
+	}
+}
+
+func TestFormatParking_ContainsTimeInfo(t *testing.T) {
+	now := time.Now()
+	parking := parkster.Parking{
+		ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Test"},
+		Car:         parkster.Car{LicenseNbr: "ABC123"},
+		CheckInTime: now.Add(-10 * time.Minute).UnixMilli(),
+		TimeoutTime: now.Add(50 * time.Minute).UnixMilli(),
+		Currency:    parkster.Currency{Code: "SEK"},
+	}
+
+	out := FormatParking(parking)
+
+	if !strings.Contains(out, "Valid from:") {
+		t.Errorf("expected 'Valid from:' in output, got: %q", out)
+	}
+	if !strings.Contains(out, "Ends at:") {
+		t.Errorf("expected 'Ends at:' in output, got: %q", out)
+	}
+	if !strings.Contains(out, "remaining") {
+		t.Errorf("expected 'remaining' in time output, got: %q", out)
+	}
+}
+
+func TestFormatParkingStopped(t *testing.T) {
+	parking := parkster.Parking{
+		ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson, Kista"},
+		Car:         parkster.Car{LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+		Cost:        0,
+		Currency:    parkster.Currency{Code: "SEK"},
+	}
+
+	out := FormatParkingStopped(parking)
+
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected zone code in output, got: %q", out)
+	}
+	if !strings.Contains(out, "ABC123") {
+		t.Errorf("expected license plate in output, got: %q", out)
+	}
+	// Stopped format should NOT show "Valid from" or "Ends at"
+	if strings.Contains(out, "Valid from:") {
+		t.Errorf("stopped parking should not show 'Valid from:', got: %q", out)
+	}
+}
+
+func TestFormatParkingList(t *testing.T) {
+	now := time.Now()
+	parkings := []parkster.Parking{
+		{
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson, Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			CheckInTime: now.Add(-10 * time.Minute).UnixMilli(),
+			TimeoutTime: now.Add(50 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+		{
+			ParkingZone: parkster.Zone{ZoneCode: "90100", Name: "Solna Centrum"},
+			Car:         parkster.Car{LicenseNbr: "XYZ789"},
+			CheckInTime: now.Add(-5 * time.Minute).UnixMilli(),
+			TimeoutTime: now.Add(25 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+
+	out := FormatParkingList(parkings)
+
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected first zone code in output, got: %q", out)
+	}
+	if !strings.Contains(out, "90100") {
+		t.Errorf("expected second zone code in output, got: %q", out)
+	}
+	// Multiple parkings should be separated by blank line
+	if !strings.Contains(out, "\n\n") {
+		t.Errorf("expected blank line separator between parkings, got: %q", out)
+	}
+}
+
+func TestFormatParkingChanged(t *testing.T) {
+	now := time.Now()
+	parking := parkster.Parking{
+		ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson, Kista"},
+		Car:         parkster.Car{LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+		TimeoutTime: now.Add(3 * time.Hour).UnixMilli(),
+		Cost:        0,
+		Currency:    parkster.Currency{Code: "SEK"},
+	}
+
+	out := FormatParkingChanged(parking)
+
+	if !strings.Contains(out, "Ends at:") {
+		t.Errorf("expected 'Ends at:' in output, got: %q", out)
+	}
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected zone code in output, got: %q", out)
+	}
+}

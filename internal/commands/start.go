@@ -237,7 +237,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start parking: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Parking started successfully\n")
-
-	return output.PrintSuccess(parking, OutputMode())
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(parking, mode)
+	}
+	fmt.Println("Parking started")
+	fmt.Println(output.FormatParking(*parking))
+	return nil
 }

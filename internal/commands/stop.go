@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
@@ -79,7 +78,11 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to stop parking: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Parking stopped successfully\n")
-
-	return output.PrintSuccess(parking, OutputMode())
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(parking, mode)
+	}
+	fmt.Println("Parking stopped")
+	fmt.Println(output.FormatParkingStopped(*parking))
+	return nil
 }
