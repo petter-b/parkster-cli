@@ -63,7 +63,11 @@ func runExtend(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("parking session not found: %d", parkingID)
 		}
 	} else if len(parkings) == 0 {
-		return fmt.Errorf("no active parking sessions")
+		if OutputMode() == output.ModeJSON {
+			return output.PrintSuccess([]any{}, OutputMode())
+		}
+		fmt.Println("No active parkings")
+		return nil
 	} else if len(parkings) == 1 {
 		parkingID = parkings[0].ID
 	} else {

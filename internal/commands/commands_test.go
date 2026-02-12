@@ -539,7 +539,7 @@ func TestStop_SingleActiveParking_Success(t *testing.T) {
 	}
 }
 
-func TestStop_NoActiveParkings_Error(t *testing.T) {
+func TestStop_NoActiveParkings_Message(t *testing.T) {
 	setAuth(t)
 
 	mock := &mockAPI{
@@ -550,12 +550,37 @@ func TestStop_NoActiveParkings_Error(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("stop")
-	if err == nil {
-		t.Fatal("expected error for no active parkings, got nil")
+	stdout, _, err := executeCommand("stop")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "no active parking") {
-		t.Errorf("expected 'no active parking' in error, got: %v", err)
+	if !strings.Contains(stdout, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in output, got: %q", stdout)
+	}
+}
+
+func TestStop_NoActiveParkings_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("stop", "--json")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got: %v", err)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
 	}
 }
 
@@ -670,7 +695,7 @@ func TestExtend_SingleParking_Success(t *testing.T) {
 	}
 }
 
-func TestExtend_NoParkings_Error(t *testing.T) {
+func TestExtend_NoParkings_Message(t *testing.T) {
 	setAuth(t)
 
 	mock := &mockAPI{
@@ -681,12 +706,12 @@ func TestExtend_NoParkings_Error(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("extend", "--minutes", "30")
-	if err == nil {
-		t.Fatal("expected error for no active parkings, got nil")
+	stdout, _, err := executeCommand("extend", "--minutes", "30")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "no active parking") {
-		t.Errorf("expected 'no active parking' in error, got: %v", err)
+	if !strings.Contains(stdout, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in output, got: %q", stdout)
 	}
 }
 
