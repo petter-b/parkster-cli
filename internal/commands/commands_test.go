@@ -1457,6 +1457,68 @@ func TestStart_ZoneCodeWithoutLatLon_FallsBackToID(t *testing.T) {
 	}
 }
 
+// --- Start command --until tests ---
+
+func TestStart_Until_Success(t *testing.T) {
+	setAuth(t)
+
+	// Use a time 2 hours from now
+	untilTime := time.Now().Add(2 * time.Hour)
+	untilStr := untilTime.Format("15:04")
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--until", untilStr)
+	if err != nil {
+		t.Fatalf("expected success with --until, got: %v", err)
+	}
+}
+
+func TestStart_BothDurationAndUntil_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--until", "23:00")
+	if err == nil {
+		t.Fatal("expected error when both --duration and --until specified")
+	}
+}
+
+func TestStart_NeitherDurationNorUntil_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429")
+	if err == nil {
+		t.Fatal("expected error when neither --duration nor --until specified")
+	}
+}
+
 // --- Start command dry-run tests ---
 
 func TestStart_DryRun_ShowsCost(t *testing.T) {

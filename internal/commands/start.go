@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
@@ -29,9 +30,12 @@ var startCmd = &cobra.Command{
 	Short: "Start a parking session",
 	Long: `Start a new parking session in a specific zone.
 
+Specify the duration using --duration (minutes) or --until (HH:MM today).
+One of --duration or --until is required.
+
 Examples:
   parkster start --zone 80500 --duration 30 --lat 59.373 --lon 17.893
-  parkster start --zone 17429 --duration 30
+  parkster start --zone 17429 --until 18:30
   parkster start --dry-run --zone 80500 --duration 30 --lat 59.373 --lon 17.893`,
 	RunE: runStart,
 }
@@ -39,7 +43,8 @@ Examples:
 func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().String("zone", "", "Zone code from parking sign (e.g., 80500)")
-	startCmd.Flags().Int("duration", 30, "Parking duration in minutes")
+	startCmd.Flags().Int("duration", 0, "Parking duration in minutes")
+	startCmd.Flags().String("until", "", "Set end time to HH:MM today (alternative to --duration)")
 	startCmd.Flags().String("car", "", "License plate (auto-selects if only one car)")
 	startCmd.Flags().String("payment", "", "Payment account ID (auto-selects if only one)")
 	startCmd.Flags().Bool("dry-run", false, "Simulate parking flow without starting (shows cost estimate)")
@@ -82,12 +87,43 @@ func resolveZone(client parkster.API, zoneInput string, lat, lon float64, radius
 func runStart(cmd *cobra.Command, args []string) error {
 	zoneInput, _ := cmd.Flags().GetString("zone")
 	duration, _ := cmd.Flags().GetInt("duration")
+	until, _ := cmd.Flags().GetString("until")
 	carFlag, _ := cmd.Flags().GetString("car")
 	paymentFlag, _ := cmd.Flags().GetString("payment")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
 	radius, _ := cmd.Flags().GetInt("radius")
+
+	// Validate: exactly one of --duration or --until
+	hasDuration := cmd.Flags().Changed("duration")
+	hasUntil := until != ""
+
+	if hasDuration && hasUntil {
+		return fmt.Errorf("--duration and --until are mutually exclusive")
+	}
+	if !hasDuration && !hasUntil {
+		return fmt.Errorf("one of --duration or --until is required")
+	}
+
+	// Compute timeout minutes
+	var timeout int
+	if hasDuration {
+		timeout = duration
+	} else {
+		target, err := parseUntil(until)
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		if target.Before(now) {
+			return fmt.Errorf("--until time %s is in the past", until)
+		}
+		timeout = int(target.Sub(now).Minutes())
+		if timeout < 1 {
+			timeout = 1
+		}
+	}
 
 	username, password, err := auth.GetCredentials(cmd)
 	if err != nil {
@@ -170,12 +206,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 			ZoneName: zone.Name,
 			Car:      selectedCar.LicenseNbr,
 			Payment:  selectedPayment.PaymentAccountID,
-			Duration: duration,
+			Duration: timeout,
 			DryRun:   true,
 		}
 
 		// Try to get cost estimate (graceful failure)
-		estimate, err := client.EstimateCost(zone.ID, zone.FeeZone.ID, selectedCar.ID, selectedPayment.PaymentAccountID, duration)
+		estimate, err := client.EstimateCost(zone.ID, zone.FeeZone.ID, selectedCar.ID, selectedPayment.PaymentAccountID, timeout)
 		if err != nil {
 			debugLog("cost estimation failed: %v", err)
 		} else {
@@ -186,7 +222,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "DRY RUN: Would start parking\n")
 		fmt.Fprintf(os.Stderr, "  Zone: %s %s (%s)\n", zone.ZoneCode, zone.Name, fmt.Sprintf("%d", zone.ID))
 		fmt.Fprintf(os.Stderr, "  Car: %s\n", selectedCar.LicenseNbr)
-		fmt.Fprintf(os.Stderr, "  Duration: %d minutes\n", duration)
+		fmt.Fprintf(os.Stderr, "  Duration: %d minutes\n", timeout)
 		if result.Cost > 0 {
 			fmt.Fprintf(os.Stderr, "  Estimated cost: %.2f %s\n", result.Cost, result.Currency)
 		}
@@ -195,8 +231,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	// Start parking
-	debugLog("starting parking for %d minutes", duration)
-	parking, err := client.StartParking(zone.ID, zone.FeeZone.ID, selectedCar.ID, selectedPayment.PaymentAccountID, duration)
+	debugLog("starting parking for %d minutes", timeout)
+	parking, err := client.StartParking(zone.ID, zone.FeeZone.ID, selectedCar.ID, selectedPayment.PaymentAccountID, timeout)
 	if err != nil {
 		return fmt.Errorf("failed to start parking: %w", err)
 	}
