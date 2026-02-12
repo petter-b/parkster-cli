@@ -1016,7 +1016,7 @@ func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
 }
 
 func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
-	// When no env vars are set, auth.GetUsername(nil) falls through to keyring
+	// When no env vars are set, auth.GetCredentials falls through to keyring
 	// which can block on macOS waiting for Keychain access prompt.
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping: macOS Keychain may block in test environment")
