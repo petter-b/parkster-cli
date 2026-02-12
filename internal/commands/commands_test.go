@@ -315,7 +315,7 @@ func TestStart_SingleCarSinglePayment_Success(t *testing.T) {
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
 		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
@@ -383,7 +383,7 @@ func TestStart_CarFlagSelectsCorrectCar(t *testing.T) {
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
 		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
@@ -472,7 +472,7 @@ func TestStart_PaymentFlagSelectsCorrect(t *testing.T) {
 			},
 		},
 		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
@@ -536,10 +536,10 @@ func TestStop_SingleActiveParking_Success(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
+				{ID: 500},
 			},
 		},
-		stopParkingResp: &parkster.Parking{ID: 500, Status: "STOPPED"},
+		stopParkingResp: &parkster.Parking{ID: 500},
 	}
 	withMockClient(t, mock)
 
@@ -576,8 +576,8 @@ func TestStop_MultipleParkingsWithoutFlag_Error(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
-				{ID: 501, Status: "ACTIVE"},
+				{ID: 500},
+				{ID: 501},
 			},
 		},
 	}
@@ -599,11 +599,11 @@ func TestStop_ParkingIDFlagSelectsCorrect(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
-				{ID: 501, Status: "ACTIVE"},
+				{ID: 500},
+				{ID: 501},
 			},
 		},
-		stopParkingResp: &parkster.Parking{ID: 501, Status: "STOPPED"},
+		stopParkingResp: &parkster.Parking{ID: 501},
 	}
 	withMockClient(t, mock)
 
@@ -620,7 +620,7 @@ func TestStop_ParkingIDNotFound_Error(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
+				{ID: 500},
 			},
 		},
 	}
@@ -642,7 +642,7 @@ func TestStop_StopParkingFails_Error(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
+				{ID: 500},
 			},
 		},
 		stopParkingErr: errors.New("server error"),
@@ -667,10 +667,10 @@ func TestExtend_SingleParking_Success(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE", Timeout: 30},
+				{ID: 500, CheckInTime: 1707400000000, TimeoutTime: 1707401800000},
 			},
 		},
-		extendResp: &parkster.Parking{ID: 500, Status: "ACTIVE", Timeout: 60},
+		extendResp: &parkster.Parking{ID: 500, TimeoutTime: 1707403600000},
 	}
 	withMockClient(t, mock)
 
@@ -707,8 +707,8 @@ func TestExtend_MultipleParkingsWithoutFlag_Error(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
-				{ID: 501, Status: "ACTIVE"},
+				{ID: 500},
+				{ID: 501},
 			},
 		},
 	}
@@ -730,7 +730,7 @@ func TestExtend_ParkingIDNotFound_Error(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
+				{ID: 500},
 			},
 		},
 	}
@@ -752,7 +752,7 @@ func TestExtend_ExtendParkingFails_Error(t *testing.T) {
 		loginResp: &parkster.User{
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
-				{ID: 500, Status: "ACTIVE"},
+				{ID: 500},
 			},
 		},
 		extendErr: errors.New("server error"),
@@ -828,14 +828,14 @@ func TestStatus_HasParkings_PrintsThem(t *testing.T) {
 			ID: 1,
 			ShortTermParkings: []parkster.Parking{
 				{
-					ID:     500,
-					Status: "ACTIVE",
-					Car:    parkster.Car{ID: 100, LicenseNbr: "ABC123"},
+					ID:  500,
+					Car: parkster.Car{ID: 100, LicenseNbr: "ABC123"},
 					ParkingZone: parkster.Zone{
 						ID:   17429,
 						Name: "Ericsson Kista",
 					},
-					Timeout: 30,
+					CheckInTime: 1707400000000,
+					TimeoutTime: 1707401800000,
 				},
 			},
 		},
@@ -846,6 +846,7 @@ func TestStatus_HasParkings_PrintsThem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
+	// Verify parking data appears in output (human output format may change in Task 8)
 	if !strings.Contains(stdout, "500") {
 		t.Errorf("expected parking ID 500 in output, got: %q", stdout)
 	}
@@ -1297,7 +1298,7 @@ func TestStart_WithZoneCode_Success(t *testing.T) {
 			Name:     "Ericsson Kista",
 			FeeZone:  parkster.FeeZone{ID: 27545},
 		},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
@@ -1321,7 +1322,7 @@ func TestStart_WithNumericID_Success(t *testing.T) {
 			ID:      17429,
 			FeeZone: parkster.FeeZone{ID: 27545},
 		},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
@@ -1367,7 +1368,7 @@ func TestStart_ZoneCodeWithoutLatLon_FallsBackToID(t *testing.T) {
 			ID:      17429,
 			FeeZone: parkster.FeeZone{ID: 27545},
 		},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
@@ -1593,7 +1594,7 @@ func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
 			ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista",
 			FeeZone: parkster.FeeZone{ID: 27545},
 		},
-		startParkingResp: &parkster.Parking{ID: 999, Status: "ACTIVE"},
+		startParkingResp: &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 

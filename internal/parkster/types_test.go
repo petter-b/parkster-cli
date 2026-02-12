@@ -11,7 +11,7 @@ func TestUser_JSONUnmarshal(t *testing.T) {
 		"email": "test@example.com",
 		"accountType": "PRIVATE",
 		"cars": [
-			{"id": 67890, "licenseNbr": "ABC123", "countryCode": "SE"}
+			{"id": 67890, "licenseNbr": "ABC123", "countryCode": "SE", "carPersonalization": {"name": "Volkswagen"}}
 		],
 		"paymentAccounts": [
 			{"paymentAccountId": "pay_123"}
@@ -20,9 +20,9 @@ func TestUser_JSONUnmarshal(t *testing.T) {
 			{
 				"id": 999,
 				"parkingZone": {"id": 17429, "name": "Ericsson"},
-				"car": {"id": 67890, "licenseNbr": "ABC123"},
-				"status": "ACTIVE",
-				"timeout": 30
+				"car": {"id": 67890, "licenseNbr": "ABC123", "carPersonalization": {"name": "Volkswagen"}},
+				"checkInTime": 1707400000000,
+				"timeoutTime": 1707401800000
 			}
 		]
 	}`
@@ -48,6 +48,9 @@ func TestUser_JSONUnmarshal(t *testing.T) {
 	if user.Cars[0].LicenseNbr != "ABC123" {
 		t.Errorf("Expected license ABC123, got %s", user.Cars[0].LicenseNbr)
 	}
+	if user.Cars[0].CarPersonalization.Name != "Volkswagen" {
+		t.Errorf("Expected car name 'Volkswagen', got %s", user.Cars[0].CarPersonalization.Name)
+	}
 	if len(user.PaymentAccounts) != 1 {
 		t.Fatalf("Expected 1 payment account, got %d", len(user.PaymentAccounts))
 	}
@@ -60,8 +63,11 @@ func TestUser_JSONUnmarshal(t *testing.T) {
 	if user.ShortTermParkings[0].ID != 999 {
 		t.Errorf("Expected parking ID 999, got %d", user.ShortTermParkings[0].ID)
 	}
-	if user.ShortTermParkings[0].Status != "ACTIVE" {
-		t.Errorf("Expected parking status ACTIVE, got %s", user.ShortTermParkings[0].Status)
+	if user.ShortTermParkings[0].CheckInTime != 1707400000000 {
+		t.Errorf("Expected checkInTime 1707400000000, got %d", user.ShortTermParkings[0].CheckInTime)
+	}
+	if user.ShortTermParkings[0].TimeoutTime != 1707401800000 {
+		t.Errorf("Expected timeoutTime 1707401800000, got %d", user.ShortTermParkings[0].TimeoutTime)
 	}
 }
 
@@ -106,7 +112,8 @@ func TestParking_JSONUnmarshal(t *testing.T) {
 		"id": 123456,
 		"parkingZone": {
 			"id": 17429,
-			"name": "Test Zone",
+			"name": "Ericsson, Kista",
+			"zoneCode": "80500",
 			"feeZone": {
 				"id": 27545,
 				"currency": {"code": "SEK", "symbol": "kr"}
@@ -115,12 +122,14 @@ func TestParking_JSONUnmarshal(t *testing.T) {
 		"car": {
 			"id": 67890,
 			"licenseNbr": "ABC123",
-			"countryCode": "SE"
+			"countryCode": "SE",
+			"carPersonalization": {"name": "Volkswagen"}
 		},
-		"startTime": "2026-02-08T12:00:00Z",
-		"timeout": 30,
+		"checkInTime": 1707400000000,
+		"timeoutTime": 1707401800000,
 		"cost": 10.50,
-		"status": "ACTIVE"
+		"totalCost": 10.50,
+		"currency": {"code": "SEK", "symbol": "kr"}
 	}`
 
 	var parking Parking
@@ -138,17 +147,23 @@ func TestParking_JSONUnmarshal(t *testing.T) {
 	if parking.Car.LicenseNbr != "ABC123" {
 		t.Errorf("Expected license ABC123, got %s", parking.Car.LicenseNbr)
 	}
-	if parking.StartTime != "2026-02-08T12:00:00Z" {
-		t.Errorf("Expected startTime 2026-02-08T12:00:00Z, got %s", parking.StartTime)
+	if parking.Car.CarPersonalization.Name != "Volkswagen" {
+		t.Errorf("Expected car name 'Volkswagen', got %s", parking.Car.CarPersonalization.Name)
 	}
-	if parking.Timeout != 30 {
-		t.Errorf("Expected timeout 30, got %d", parking.Timeout)
+	if parking.CheckInTime != 1707400000000 {
+		t.Errorf("Expected checkInTime 1707400000000, got %d", parking.CheckInTime)
+	}
+	if parking.TimeoutTime != 1707401800000 {
+		t.Errorf("Expected timeoutTime 1707401800000, got %d", parking.TimeoutTime)
 	}
 	if parking.Cost != 10.50 {
 		t.Errorf("Expected cost 10.50, got %f", parking.Cost)
 	}
-	if parking.Status != "ACTIVE" {
-		t.Errorf("Expected status ACTIVE, got %s", parking.Status)
+	if parking.TotalCost != 10.50 {
+		t.Errorf("Expected totalCost 10.50, got %f", parking.TotalCost)
+	}
+	if parking.Currency.Code != "SEK" {
+		t.Errorf("Expected currency SEK, got %s", parking.Currency.Code)
 	}
 }
 

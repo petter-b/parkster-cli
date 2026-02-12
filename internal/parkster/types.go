@@ -10,11 +10,17 @@ type User struct {
 	ShortTermParkings []Parking        `json:"shortTermParkings"`
 }
 
+// CarPersonalization contains user-assigned vehicle details
+type CarPersonalization struct {
+	Name string `json:"name"`
+}
+
 // Car represents a registered vehicle
 type Car struct {
-	ID          int    `json:"id"`
-	LicenseNbr  string `json:"licenseNbr"`
-	CountryCode string `json:"countryCode"`
+	ID                 int                `json:"id"`
+	LicenseNbr         string             `json:"licenseNbr"`
+	CountryCode        string             `json:"countryCode"`
+	CarPersonalization CarPersonalization `json:"carPersonalization"`
 }
 
 // PaymentAccount represents a payment method
@@ -78,13 +84,14 @@ type SearchResult struct {
 
 // Parking represents an active or completed parking session
 type Parking struct {
-	ID          int     `json:"id"`
-	ParkingZone Zone    `json:"parkingZone"`
-	Car         Car     `json:"car"`
-	StartTime   string  `json:"startTime"`
-	Timeout     int     `json:"timeout"`
-	Cost        float64 `json:"cost"`
-	Status      string  `json:"status"`
+	ID          int      `json:"id"`
+	ParkingZone Zone     `json:"parkingZone"`
+	Car         Car      `json:"car"`
+	CheckInTime int64    `json:"checkInTime"`
+	TimeoutTime int64    `json:"timeoutTime"`
+	Cost        float64  `json:"cost"`
+	TotalCost   float64  `json:"totalCost"`
+	Currency    Currency `json:"currency"`
 }
 
 // CostEstimate represents the probable cost of a parking session

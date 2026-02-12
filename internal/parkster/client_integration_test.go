@@ -61,8 +61,8 @@ func TestIntegration_GetActiveParkings(t *testing.T) {
 
 	t.Logf("Active parkings: %d", len(parkings))
 	for _, p := range parkings {
-		t.Logf("  Parking %d: zone=%s car=%s status=%s",
-			p.ID, p.ParkingZone.Name, p.Car.LicenseNbr, p.Status)
+		t.Logf("  Parking %d: zone=%s car=%s",
+			p.ID, p.ParkingZone.Name, p.Car.LicenseNbr)
 	}
 }
 

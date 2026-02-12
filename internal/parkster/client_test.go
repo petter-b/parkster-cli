@@ -240,7 +240,7 @@ func TestLogin_Success(t *testing.T) {
 			Cars:            []Car{{ID: 67890, LicenseNbr: "ABC123", CountryCode: "SE"}},
 			PaymentAccounts: []PaymentAccount{{PaymentAccountID: "pay_123"}},
 			ShortTermParkings: []Parking{
-				{ID: 999, Status: "ACTIVE", Car: Car{LicenseNbr: "ABC123"}},
+				{ID: 999, Car: Car{LicenseNbr: "ABC123"}},
 			},
 		})
 	}))
@@ -295,8 +295,8 @@ func TestGetActiveParkings_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode([]Parking{
-			{ID: 111, Status: "ACTIVE", Car: Car{LicenseNbr: "ABC123"}},
-			{ID: 222, Status: "ACTIVE", Car: Car{LicenseNbr: "DEF456"}},
+			{ID: 111, Car: Car{LicenseNbr: "ABC123"}},
+			{ID: 222, Car: Car{LicenseNbr: "DEF456"}},
 		})
 	}))
 	defer server.Close()
@@ -412,9 +412,8 @@ func TestStartParking_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Parking{
-			ID:     123456,
-			Status: "ACTIVE",
-			Car:    Car{ID: 67890, LicenseNbr: "ABC123"},
+			ID:  123456,
+			Car: Car{ID: 67890, LicenseNbr: "ABC123"},
 		})
 	}))
 	defer server.Close()
@@ -426,9 +425,6 @@ func TestStartParking_Success(t *testing.T) {
 	}
 	if parking.ID != 123456 {
 		t.Errorf("Expected parking ID 123456, got %d", parking.ID)
-	}
-	if parking.Status != "ACTIVE" {
-		t.Errorf("Expected status ACTIVE, got %s", parking.Status)
 	}
 }
 
@@ -459,9 +455,8 @@ func TestStopParking_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Parking{
-			ID:     123456,
-			Status: "COMPLETED",
-			Cost:   15.50,
+			ID:   123456,
+			Cost: 15.50,
 		})
 	}))
 	defer server.Close()
@@ -473,9 +468,6 @@ func TestStopParking_Success(t *testing.T) {
 	}
 	if parking.ID != 123456 {
 		t.Errorf("Expected parking ID 123456, got %d", parking.ID)
-	}
-	if parking.Status != "COMPLETED" {
-		t.Errorf("Expected status COMPLETED, got %s", parking.Status)
 	}
 	if parking.Cost != 15.50 {
 		t.Errorf("Expected cost 15.50, got %f", parking.Cost)
@@ -514,9 +506,8 @@ func TestExtendParking_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Parking{
-			ID:      123456,
-			Status:  "ACTIVE",
-			Timeout: 60,
+			ID:          123456,
+			TimeoutTime: 1707403600000,
 		})
 	}))
 	defer server.Close()
@@ -529,8 +520,8 @@ func TestExtendParking_Success(t *testing.T) {
 	if parking.ID != 123456 {
 		t.Errorf("Expected parking ID 123456, got %d", parking.ID)
 	}
-	if parking.Timeout != 60 {
-		t.Errorf("Expected timeout 60, got %d", parking.Timeout)
+	if parking.TimeoutTime != 1707403600000 {
+		t.Errorf("Expected timeoutTime 1707403600000, got %d", parking.TimeoutTime)
 	}
 }
 
