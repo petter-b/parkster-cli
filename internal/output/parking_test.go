@@ -132,6 +132,32 @@ func TestFormatParkingList(t *testing.T) {
 	}
 }
 
+func TestFormatZoneSearchList(t *testing.T) {
+	zones := []parkster.ZoneSearchItem{
+		{ID: 17429, Name: "Ericsson", ZoneCode: "80500", City: parkster.City{Name: "Kista"}},
+		{ID: 6388, Name: "MC inom Taxa 3", ZoneCode: "13", City: parkster.City{Name: "Stockholm"}},
+	}
+
+	out := FormatZoneSearchList(zones)
+
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected zone code 80500, got: %q", out)
+	}
+	if !strings.Contains(out, "Ericsson") {
+		t.Errorf("expected zone name, got: %q", out)
+	}
+	if !strings.Contains(out, "Kista") {
+		t.Errorf("expected city name, got: %q", out)
+	}
+	// Must NOT contain internal IDs or curly braces
+	if strings.Contains(out, "17429") {
+		t.Errorf("should not contain internal zone ID, got: %q", out)
+	}
+	if strings.Contains(out, "{") {
+		t.Errorf("should not contain curly braces, got: %q", out)
+	}
+}
+
 func TestFormatParkingChanged(t *testing.T) {
 	now := time.Now()
 	parking := parkster.Parking{

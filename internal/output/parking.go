@@ -87,6 +87,22 @@ func FormatParkingChanged(p parkster.Parking) string {
 	return b.String()
 }
 
+// FormatZoneSearchList formats zone search results as a compact table
+func FormatZoneSearchList(zones []parkster.ZoneSearchItem) string {
+	var b strings.Builder
+	for i, z := range zones {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		if z.City.Name != "" {
+			fmt.Fprintf(&b, "%-6s %s, %s", z.ZoneCode, z.Name, z.City.Name)
+		} else {
+			fmt.Fprintf(&b, "%-6s %s", z.ZoneCode, z.Name)
+		}
+	}
+	return b.String()
+}
+
 // FormatParkingList formats multiple parkings for status display
 func FormatParkingList(parkings []parkster.Parking) string {
 	var b strings.Builder
