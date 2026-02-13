@@ -1753,6 +1753,64 @@ func TestZonesSearch_RadiusDefault_IsZero(t *testing.T) {
 	}
 }
 
+func TestZonesSearch_HumanOutput_NoInternalIDs(t *testing.T) {
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson", ZoneCode: "80500", City: parkster.City{Name: "Kista"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	// Should show zone code and name
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code in output, got: %q", stdout)
+	}
+	// Should NOT show internal ID or curly braces
+	if strings.Contains(stdout, "17429") {
+		t.Errorf("should not show internal zone ID, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("should not show curly braces, got: %q", stdout)
+	}
+}
+
+func TestZonesInfo_HumanOutput_NoInternalIDs(t *testing.T) {
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{
+			ID: 17429, Name: "Ericsson", ZoneCode: "80500",
+			City: parkster.City{Name: "Kista"},
+			FeeZone: parkster.FeeZone{
+				ID:       27545,
+				Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "17429") {
+		t.Errorf("should not show internal zone ID, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "27545") {
+		t.Errorf("should not show fee zone ID, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("should not show curly braces, got: %q", stdout)
+	}
+}
+
 func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
 	setAuth(t)
 	mock := &mockAPI{

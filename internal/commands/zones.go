@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/output"
+	"github.com/petter-b/parkster-cli/internal/parkster"
 	"github.com/spf13/cobra"
 )
 
@@ -95,7 +96,12 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	return output.PrintSuccess(allZones, OutputMode())
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(allZones, mode)
+	}
+	fmt.Println(output.FormatZoneSearchList(allZones))
+	return nil
 }
 
 func runZonesInfo(cmd *cobra.Command, args []string) error {
@@ -111,7 +117,7 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 		zone, err := client.GetZoneByCode(zoneInput, lat, lon, 0)
 		if err == nil {
 			debugLog("found zone %d: %s", zone.ID, zone.Name)
-			return output.PrintSuccess(zone, OutputMode())
+			return printZoneInfo(zone)
 		}
 		debugLog("zone code lookup failed: %v, trying as numeric ID", err)
 	}
@@ -132,5 +138,15 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	}
 
 	debugLog("found zone %d: %s", zone.ID, zone.Name)
-	return output.PrintSuccess(zone, OutputMode())
+	return printZoneInfo(zone)
+}
+
+// printZoneInfo outputs zone details using the custom formatter for human mode
+func printZoneInfo(zone *parkster.Zone) error {
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(zone, mode)
+	}
+	fmt.Println(output.FormatZoneInfo(*zone))
+	return nil
 }
