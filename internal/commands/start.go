@@ -79,7 +79,7 @@ func resolveZone(client parkster.API, zoneInput string, lat, lon float64, radius
 
 	zone, err := client.GetZone(zoneID)
 	if err != nil {
-		return nil, fmt.Errorf("zone %d not found: %w", zoneID, err)
+		return nil, fmt.Errorf("zone not found: %w", err)
 	}
 
 	return zone, nil

@@ -134,7 +134,7 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	debugLog("looking up zone by ID %d", zoneID)
 	zone, err := client.GetZone(zoneID)
 	if err != nil {
-		return fmt.Errorf("zone %d not found: %w", zoneID, err)
+		return fmt.Errorf("zone not found: %w", err)
 	}
 
 	debugLog("found zone %d: %s", zone.ID, zone.Name)
