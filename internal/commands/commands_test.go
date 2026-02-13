@@ -1811,6 +1811,60 @@ func TestZonesInfo_HumanOutput_NoInternalIDs(t *testing.T) {
 	}
 }
 
+func TestStart_MultipleCars_HumanOutput_NoInternalIDs(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+				{ID: 101, LicenseNbr: "UPC304", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("start", "--zone", "17429", "--duration", "30")
+	// Should show car names and plates
+	if !strings.Contains(stdout, "Volkswagen") {
+		t.Errorf("expected car name in output, got: %q", stdout)
+	}
+	// Should NOT show internal IDs or curly braces
+	if strings.Contains(stdout, " 100") || strings.Contains(stdout, " 101") {
+		t.Errorf("should not show internal car IDs, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("should not show curly braces, got: %q", stdout)
+	}
+}
+
+func TestStart_MultiplePayments_HumanOutput_Clean(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "PRIVATE:9999999"},
+				{PaymentAccountID: "AT_WORK:72624"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("start", "--zone", "17429", "--duration", "30")
+	// Should show payment info
+	if !strings.Contains(stdout, "PRIVATE") {
+		t.Errorf("expected payment type in output, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "9999999") {
+		t.Errorf("expected payment ID in output, got: %q", stdout)
+	}
+}
+
 func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
 	setAuth(t)
 	mock := &mockAPI{
