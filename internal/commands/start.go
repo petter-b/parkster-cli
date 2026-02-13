@@ -171,9 +171,19 @@ func runStart(cmd *cobra.Command, args []string) error {
 	var selectedPayment *parkster.PaymentAccount
 	if paymentFlag != "" {
 		for i := range user.PaymentAccounts {
-			if user.PaymentAccounts[i].PaymentAccountID == paymentFlag {
-				selectedPayment = &user.PaymentAccounts[i]
+			pa := &user.PaymentAccounts[i]
+			id := pa.PaymentAccountID
+			// Exact match (case-insensitive)
+			if strings.EqualFold(id, paymentFlag) {
+				selectedPayment = pa
 				break
+			}
+			// Partial match on colon-separated parts
+			if idx := strings.Index(id, ":"); idx >= 0 {
+				if id[idx+1:] == paymentFlag || strings.EqualFold(id[:idx], paymentFlag) {
+					selectedPayment = pa
+					break
+				}
 			}
 		}
 		if selectedPayment == nil {

@@ -2092,3 +2092,73 @@ func TestParseUntil_BareHour(t *testing.T) {
 		t.Fatalf("expected bare hour to work, got: %v", err)
 	}
 }
+
+// --- Payment flag flexible matching tests ---
+
+func TestStart_PaymentFlag_MatchesByNumericPart(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "PRIVATE:9999999"},
+				{PaymentAccountID: "AT_WORK:72624"},
+			},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "9999999")
+	if err != nil {
+		t.Fatalf("expected --payment to match numeric suffix, got: %v", err)
+	}
+}
+
+func TestStart_PaymentFlag_MatchesByTypePrefix(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "PRIVATE:9999999"},
+				{PaymentAccountID: "AT_WORK:72624"},
+			},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "PRIVATE")
+	if err != nil {
+		t.Fatalf("expected --payment to match type prefix, got: %v", err)
+	}
+}
+
+func TestStart_PaymentFlag_FullID_StillWorks(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "PRIVATE:9999999"},
+			},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "PRIVATE:9999999")
+	if err != nil {
+		t.Fatalf("expected full payment ID to still work, got: %v", err)
+	}
+}
