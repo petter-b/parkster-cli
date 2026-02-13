@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -1962,5 +1963,63 @@ func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
 		"--lat", "59.373", "--lon", "17.893", "--radius", "1000")
 	if err != nil {
 		t.Fatalf("expected success with --radius, got: %v", err)
+	}
+}
+
+// --- parseUntil flexible format tests ---
+
+func TestParseUntil_DotSeparator(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	untilTime := now.Add(2 * time.Hour)
+	// Use dot format: "HH.MM"
+	untilStr := fmt.Sprintf("%02d.%02d", untilTime.Hour(), untilTime.Minute())
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+		extendResp: &parkster.Parking{ID: 500, TimeoutTime: untilTime.UnixMilli()},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--until", untilStr)
+	if err != nil {
+		t.Fatalf("expected dot-separated time to work, got: %v", err)
+	}
+}
+
+func TestParseUntil_BareHour(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	// Use a bare hour 2 hours from now
+	futureHour := (now.Hour() + 2) % 24
+	untilStr := fmt.Sprintf("%d", futureHour)
+
+	// Skip if the target would be in the past (near midnight)
+	target := time.Date(now.Year(), now.Month(), now.Day(), futureHour, 0, 0, 0, now.Location())
+	if target.Before(now) {
+		t.Skip("skipping: bare hour would be in the past near midnight")
+	}
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+		extendResp: &parkster.Parking{ID: 500, TimeoutTime: target.UnixMilli()},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--until", untilStr)
+	if err != nil {
+		t.Fatalf("expected bare hour to work, got: %v", err)
 	}
 }

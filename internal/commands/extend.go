@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
@@ -31,12 +32,22 @@ func init() {
 	changeCmd.Flags().Int("parking-id", 0, "Parking session ID (auto-selects if only one active)")
 }
 
-// parseUntil parses "HH:MM" and returns the target time today in local timezone.
+// parseUntil parses time in "HH:MM", "HH.MM", or bare "HH" format.
+// Returns the target time today in local timezone.
 func parseUntil(s string) (time.Time, error) {
-	t, err := time.Parse("15:04", s)
+	// Normalize dot separator to colon
+	normalized := strings.ReplaceAll(s, ".", ":")
+
+	// Try HH:MM
+	t, err := time.Parse("15:04", normalized)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid time format %q (expected HH:MM)", s)
+		// Try bare hour (e.g. "17" or "9")
+		t, err = time.Parse("15", s)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid time format %q (expected HH:MM, HH.MM, or HH)", s)
+		}
 	}
+
 	now := time.Now()
 	target := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
 	return target, nil
