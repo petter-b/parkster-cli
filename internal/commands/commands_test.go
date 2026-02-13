@@ -1865,6 +1865,83 @@ func TestStart_MultiplePayments_HumanOutput_Clean(t *testing.T) {
 	}
 }
 
+func TestStop_MultipleParkings_HumanOutput_NoRawStructs(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson"},
+					Car:         parkster.Car{LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+					CheckInTime: now.Add(-10 * time.Minute).UnixMilli(),
+					TimeoutTime: now.Add(50 * time.Minute).UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+				{
+					ID:          501,
+					ParkingZone: parkster.Zone{ZoneCode: "90100", Name: "Solna"},
+					Car:         parkster.Car{LicenseNbr: "UPC304"},
+					CheckInTime: now.Add(-5 * time.Minute).UnixMilli(),
+					TimeoutTime: now.Add(25 * time.Minute).UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("stop")
+	// Should show zone codes, not raw structs
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code in output, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("should not show curly braces in output, got: %q", stdout)
+	}
+}
+
+func TestChange_MultipleParkings_HumanOutput_NoRawStructs(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson"},
+					Car:         parkster.Car{LicenseNbr: "ABC123"},
+					CheckInTime: now.Add(-10 * time.Minute).UnixMilli(),
+					TimeoutTime: now.Add(50 * time.Minute).UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+				{
+					ID:          501,
+					ParkingZone: parkster.Zone{ZoneCode: "90100", Name: "Solna"},
+					Car:         parkster.Car{LicenseNbr: "UPC304"},
+					CheckInTime: now.Add(-5 * time.Minute).UnixMilli(),
+					TimeoutTime: now.Add(25 * time.Minute).UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("change", "--duration", "60")
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code in output, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("should not show curly braces in output, got: %q", stdout)
+	}
+}
+
 func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
 	setAuth(t)
 	mock := &mockAPI{
