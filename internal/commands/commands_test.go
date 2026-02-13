@@ -1966,6 +1966,75 @@ func TestStart_WithRadius_PassesToZoneLookup(t *testing.T) {
 	}
 }
 
+// --- Car flag matching tests ---
+
+func TestStart_CarFlag_MatchesByName(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+				{ID: 101, LicenseNbr: "UPC304", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "Volkswagen")
+	if err != nil {
+		t.Fatalf("expected --car to match by name, got: %v", err)
+	}
+}
+
+func TestStart_CarFlag_CaseInsensitive(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "volkswagen")
+	if err != nil {
+		t.Fatalf("expected case-insensitive match, got: %v", err)
+	}
+}
+
+func TestStart_CarFlag_CaseInsensitivePlate(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "abc123")
+	if err != nil {
+		t.Fatalf("expected case-insensitive plate match, got: %v", err)
+	}
+}
+
 // --- parseUntil flexible format tests ---
 
 func TestParseUntil_DotSeparator(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
@@ -145,8 +146,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 	var selectedCar *parkster.Car
 	if carFlag != "" {
 		for i := range user.Cars {
-			if user.Cars[i].LicenseNbr == carFlag {
-				selectedCar = &user.Cars[i]
+			c := &user.Cars[i]
+			if strings.EqualFold(c.LicenseNbr, carFlag) ||
+				strings.EqualFold(c.CarPersonalization.Name, carFlag) {
+				selectedCar = c
 				break
 			}
 		}
