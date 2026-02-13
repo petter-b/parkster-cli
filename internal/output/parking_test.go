@@ -221,6 +221,72 @@ func TestFormatZoneInfo_NoFees(t *testing.T) {
 	}
 }
 
+func TestFormatCarList(t *testing.T) {
+	cars := []parkster.Car{
+		{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+		{ID: 101, LicenseNbr: "UPC304", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+	}
+
+	out := FormatCarList(cars)
+
+	if !strings.Contains(out, "Volkswagen - ABC123") {
+		t.Errorf("expected 'Volkswagen - ABC123', got: %q", out)
+	}
+	if !strings.Contains(out, "Saab - UPC304") {
+		t.Errorf("expected 'Saab - UPC304', got: %q", out)
+	}
+	// Must NOT contain internal IDs or curly braces
+	if strings.Contains(out, "100") {
+		t.Errorf("should not contain car ID, got: %q", out)
+	}
+	if strings.Contains(out, "{") {
+		t.Errorf("should not contain curly braces, got: %q", out)
+	}
+}
+
+func TestFormatCarList_NoPersonalization(t *testing.T) {
+	cars := []parkster.Car{
+		{ID: 100, LicenseNbr: "ABC123"},
+	}
+
+	out := FormatCarList(cars)
+
+	if !strings.Contains(out, "ABC123") {
+		t.Errorf("expected license plate, got: %q", out)
+	}
+}
+
+func TestFormatPaymentList(t *testing.T) {
+	accounts := []parkster.PaymentAccount{
+		{PaymentAccountID: "PRIVATE:9999999"},
+		{PaymentAccountID: "AT_WORK:72624"},
+	}
+
+	out := FormatPaymentList(accounts)
+
+	if !strings.Contains(out, "PRIVATE") {
+		t.Errorf("expected 'PRIVATE', got: %q", out)
+	}
+	if !strings.Contains(out, "9999999") {
+		t.Errorf("expected '9999999', got: %q", out)
+	}
+	if !strings.Contains(out, "AT_WORK") {
+		t.Errorf("expected 'AT_WORK', got: %q", out)
+	}
+}
+
+func TestFormatPaymentList_NoPrefix(t *testing.T) {
+	accounts := []parkster.PaymentAccount{
+		{PaymentAccountID: "simple-id"},
+	}
+
+	out := FormatPaymentList(accounts)
+
+	if !strings.Contains(out, "simple-id") {
+		t.Errorf("expected 'simple-id', got: %q", out)
+	}
+}
+
 func TestFormatParkingChanged(t *testing.T) {
 	now := time.Now()
 	parking := parkster.Parking{

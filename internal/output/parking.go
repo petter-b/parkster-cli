@@ -132,6 +132,35 @@ func formatMinutesSinceMidnight(m int) string {
 	return fmt.Sprintf("%02d:%02d", m/60, m%60)
 }
 
+// FormatCarList formats multiple cars for disambiguation display
+func FormatCarList(cars []parkster.Car) string {
+	var b strings.Builder
+	for i, c := range cars {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "  %s", formatCar(c))
+	}
+	return b.String()
+}
+
+// FormatPaymentList formats multiple payment accounts for disambiguation display
+func FormatPaymentList(accounts []parkster.PaymentAccount) string {
+	var b strings.Builder
+	for i, a := range accounts {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		id := a.PaymentAccountID
+		if idx := strings.Index(id, ":"); idx >= 0 {
+			fmt.Fprintf(&b, "  %-10s %s", id[:idx], id[idx+1:])
+		} else {
+			fmt.Fprintf(&b, "  %s", id)
+		}
+	}
+	return b.String()
+}
+
 // FormatParkingList formats multiple parkings for status display
 func FormatParkingList(parkings []parkster.Parking) string {
 	var b strings.Builder
