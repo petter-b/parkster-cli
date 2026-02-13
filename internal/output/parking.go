@@ -103,6 +103,35 @@ func FormatZoneSearchList(zones []parkster.ZoneSearchItem) string {
 	return b.String()
 }
 
+// FormatZoneInfo formats a zone's full details for display
+func FormatZoneInfo(z parkster.Zone) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Zone:     %s %s\n", z.ZoneCode, z.Name)
+	if z.City.Name != "" {
+		fmt.Fprintf(&b, "City:     %s\n", z.City.Name)
+	}
+	if z.FeeZone.Currency.Code != "" {
+		fmt.Fprintf(&b, "Currency: %s", z.FeeZone.Currency.Code)
+		if z.FeeZone.Currency.Symbol != "" {
+			fmt.Fprintf(&b, " (%s)", z.FeeZone.Currency.Symbol)
+		}
+		b.WriteString("\n")
+	}
+	for _, fee := range z.FeeZone.ParkingFees {
+		desc := fee.Description
+		if desc == "" {
+			desc = fmt.Sprintf("%s-%s", formatMinutesSinceMidnight(fee.StartTime), formatMinutesSinceMidnight(fee.EndTime))
+		}
+		fmt.Fprintf(&b, "Rate:     %.2f %s/h (%s)\n", fee.AmountPerHour, z.FeeZone.Currency.Symbol, desc)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// formatMinutesSinceMidnight converts minutes since midnight to "HH:MM"
+func formatMinutesSinceMidnight(m int) string {
+	return fmt.Sprintf("%02d:%02d", m/60, m%60)
+}
+
 // FormatParkingList formats multiple parkings for status display
 func FormatParkingList(parkings []parkster.Parking) string {
 	var b strings.Builder

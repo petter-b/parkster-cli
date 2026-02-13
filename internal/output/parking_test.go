@@ -158,6 +158,69 @@ func TestFormatZoneSearchList(t *testing.T) {
 	}
 }
 
+func TestFormatZoneInfo(t *testing.T) {
+	zone := parkster.Zone{
+		ID:       17429,
+		Name:     "Ericsson",
+		ZoneCode: "80500",
+		City:     parkster.City{Name: "Kista"},
+		FeeZone: parkster.FeeZone{
+			ID:       27545,
+			Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+			ParkingFees: []parkster.ParkingFee{
+				{AmountPerHour: 10.0, Description: "Weekdays 8-18", StartTime: 480, EndTime: 1080},
+			},
+		},
+	}
+
+	out := FormatZoneInfo(zone)
+
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected zone code, got: %q", out)
+	}
+	if !strings.Contains(out, "Ericsson") {
+		t.Errorf("expected zone name, got: %q", out)
+	}
+	if !strings.Contains(out, "Kista") {
+		t.Errorf("expected city, got: %q", out)
+	}
+	if !strings.Contains(out, "10.00") {
+		t.Errorf("expected rate, got: %q", out)
+	}
+	// Must NOT contain internal IDs or curly braces
+	if strings.Contains(out, "17429") {
+		t.Errorf("should not contain internal zone ID, got: %q", out)
+	}
+	if strings.Contains(out, "27545") {
+		t.Errorf("should not contain fee zone ID, got: %q", out)
+	}
+	if strings.Contains(out, "{") {
+		t.Errorf("should not contain curly braces, got: %q", out)
+	}
+}
+
+func TestFormatZoneInfo_NoFees(t *testing.T) {
+	zone := parkster.Zone{
+		ID:       17429,
+		Name:     "Test Zone",
+		ZoneCode: "12345",
+		City:     parkster.City{Name: "Stockholm"},
+		FeeZone: parkster.FeeZone{
+			Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+		},
+	}
+
+	out := FormatZoneInfo(zone)
+
+	if !strings.Contains(out, "12345") {
+		t.Errorf("expected zone code, got: %q", out)
+	}
+	// Should still work without fees
+	if strings.Contains(out, "{") {
+		t.Errorf("should not contain curly braces, got: %q", out)
+	}
+}
+
 func TestFormatParkingChanged(t *testing.T) {
 	now := time.Now()
 	parking := parkster.Parking{
