@@ -2302,6 +2302,30 @@ func TestAuthLogin_InvalidCredentials_Error(t *testing.T) {
 	}
 }
 
+func TestStart_LatWithoutLon_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.37")
+	if err == nil {
+		t.Fatal("expected error for --lat without --lon, got nil")
+	}
+	if !strings.Contains(err.Error(), "together") {
+		t.Errorf("expected 'together' in error, got: %v", err)
+	}
+}
+
+func TestStart_LonWithoutLat_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for --lon without --lat, got nil")
+	}
+	if !strings.Contains(err.Error(), "together") {
+		t.Errorf("expected 'together' in error, got: %v", err)
+	}
+}
+
 func TestJsonAndPlain_MutuallyExclusive(t *testing.T) {
 	_, _, err := executeCommand("version", "--json", "--plain")
 	if err == nil {

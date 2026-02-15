@@ -96,6 +96,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 	lon, _ := cmd.Flags().GetFloat64("lon")
 	radius, _ := cmd.Flags().GetInt("radius")
 
+	// Validate: --lat and --lon must be used together
+	hasLat := cmd.Flags().Changed("lat")
+	hasLon := cmd.Flags().Changed("lon")
+	if hasLat != hasLon {
+		return fmt.Errorf("--lat and --lon must be used together")
+	}
+
 	// Validate: exactly one of --duration or --until
 	hasDuration := cmd.Flags().Changed("duration")
 	hasUntil := until != ""
