@@ -11,6 +11,9 @@ import (
 
 const serviceName = "parkster"
 
+// ErrNoCredentials indicates no credentials were found to delete.
+var ErrNoCredentials = fmt.Errorf("no credentials stored")
+
 // credentials holds username and password as a single JSON blob for keychain storage.
 type credentials struct {
 	Username string `json:"username"`
@@ -161,6 +164,10 @@ func DeleteCredentials() error {
 
 // deleteCredentialsFrom removes credentials using the provided KeyringStore.
 func deleteCredentialsFrom(ring KeyringStore) error {
+	_, err := ring.Get(credentialKey("credentials"))
+	if err != nil {
+		return ErrNoCredentials
+	}
 	_ = ring.Remove(credentialKey("credentials"))
 	// Clean up legacy separate items
 	_ = ring.Remove(credentialKey("username"))

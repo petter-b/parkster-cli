@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -218,6 +219,18 @@ func TestDeleteCredentials_RemovesKey(t *testing.T) {
 	}
 	if _, err := ring.Get(credentialKey("password")); err == nil {
 		t.Error("expected legacy password to be removed")
+	}
+}
+
+func TestDeleteCredentials_EmptyKeyring_ReturnsError(t *testing.T) {
+	ring := newMockKeyring() // empty, nothing stored
+
+	err := deleteCredentialsFrom(ring)
+	if err == nil {
+		t.Fatal("expected error when no credentials to delete")
+	}
+	if !errors.Is(err, ErrNoCredentials) {
+		t.Errorf("expected ErrNoCredentials, got: %v", err)
 	}
 }
 

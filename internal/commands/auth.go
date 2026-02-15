@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -109,10 +110,14 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 
 func runAuthRemove(cmd *cobra.Command, args []string) error {
 	if err := auth.DeleteCredentials(); err != nil {
+		if errors.Is(err, auth.ErrNoCredentials) {
+			fmt.Fprintln(os.Stderr, "No credentials to remove")
+			return nil
+		}
 		return fmt.Errorf("failed to remove credentials: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Credentials removed\n")
+	fmt.Fprintln(os.Stderr, "Credentials removed")
 	return nil
 }
 

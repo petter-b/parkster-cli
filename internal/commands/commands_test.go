@@ -2449,8 +2449,6 @@ func TestZonesSearch_NegativeRadius_Error(t *testing.T) {
 // --- BUG-5: auth logout succeeds when no credentials exist ---
 
 func TestAuthLogout_NoCredentials_ShouldIndicate(t *testing.T) {
-	t.Skip("known bug: BUG-5 — logout always says 'Credentials removed' even when none existed")
-
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping: macOS Keychain may block in test environment")
 	}
