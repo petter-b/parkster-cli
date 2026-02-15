@@ -43,8 +43,8 @@ func OpenKeyring() (keyring.Keyring, error) {
 	ring, err := keyring.Open(keyring.Config{
 		ServiceName: serviceName,
 
-		// macOS - use default login keychain
-		KeychainTrustApplication: false,
+		// macOS - trust this app so reads don't prompt
+		KeychainTrustApplication: true,
 
 		// Linux - prefer secret service, fall back to encrypted file
 		FileDir: fileDir,
