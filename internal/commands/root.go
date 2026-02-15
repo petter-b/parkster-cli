@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/petter-b/parkster-cli/internal/config"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -28,13 +27,6 @@ Features:
 - Secure credential storage via OS keychain`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		_, err := config.Load("")
-		if err != nil {
-			debugLog("config load warning: %v", err)
-		}
-		return nil
-	},
 }
 
 func init() {
