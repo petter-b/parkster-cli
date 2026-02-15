@@ -3,7 +3,7 @@
 [![CI](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/petter-b/parkster-cli/badge.svg)](https://codecov.io/gh/petter-b/parkster-cli)
 
-A command-line tool for managing [Parkster](https://parkster.com) parking sessions. Start, stop, extend, and check parking status from your terminal.
+A command-line tool for managing [Parkster](https://parkster.com) parking sessions. Start, stop, change, and check parking status from your terminal.
 
 ## Install
 
@@ -30,8 +30,8 @@ parkster start --zone 17429 --duration 30
 # Check active parkings
 parkster status
 
-# Extend by 15 minutes
-parkster extend --minutes 15
+# Change end time
+parkster change --duration 15
 
 # Stop parking
 parkster stop
@@ -43,8 +43,10 @@ parkster stop
 |---------|-------------|
 | `parkster start` | Start a parking session |
 | `parkster stop` | Stop an active parking session |
-| `parkster extend` | Extend parking duration |
+| `parkster change` | Change parking end time |
 | `parkster status` | View active parking sessions |
+| `parkster zones search` | Search for zones near GPS coordinates |
+| `parkster zones info` | Show details for a zone by sign code |
 | `parkster auth login` | Store credentials in OS keychain |
 | `parkster auth logout` | Remove stored credentials |
 | `parkster auth status` | Check authentication status |
@@ -61,14 +63,15 @@ Flags: `--zone` (required), `--duration` (default: 30), `--car`, `--payment`
 
 If you have a single car and payment method, they are auto-selected.
 
-### Stop / Extend
+### Stop / Change
 
 ```bash
-parkster stop                        # auto-selects if only one active
+parkster stop                        # auto-stops if only one active
 parkster stop --parking-id 123456
 
-parkster extend --minutes 15         # auto-selects if only one active
-parkster extend --minutes 30 --parking-id 123456
+parkster change --duration 60         # extend by setting new end time
+parkster change --until 18:30         # set end time to 18:30 today
+parkster change --duration 60 --parking-id 123456
 ```
 
 ## Authentication
@@ -91,8 +94,21 @@ Credentials are resolved in this order:
 
 ```bash
 parkster status                  # human-readable (default)
-parkster status --format json    # JSON output
-parkster status --format tsv     # tab-separated values
+parkster status --json           # JSON with envelope
+parkster status --plain          # tab-separated values
+```
+
+## Uninstall
+
+```bash
+# Remove the binary
+rm $(which parkster)
+
+# Remove stored credentials
+parkster auth logout
+
+# Remove config directory (optional)
+rm -rf ~/.config/parkster
 ```
 
 ## Development
