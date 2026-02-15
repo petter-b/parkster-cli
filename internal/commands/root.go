@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -14,6 +15,10 @@ var (
 	jsonFlag  bool
 	plainFlag bool
 )
+
+// errSilent indicates the error message was already printed.
+// Execute() will skip printing but still return non-nil for os.Exit(1).
+var errSilent = errors.New("")
 
 var rootCmd = &cobra.Command{
 	Use:   "parkster",
@@ -53,7 +58,7 @@ func init() {
 // Execute runs the root command, formatting errors based on output mode
 func Execute() error {
 	err := rootCmd.Execute()
-	if err != nil {
+	if err != nil && !errors.Is(err, errSilent) {
 		output.PrintError(err.Error(), OutputMode())
 	}
 	return err
@@ -69,4 +74,16 @@ func debugLog(fmt_ string, args ...any) {
 	if debug {
 		fmt.Fprintf(os.Stderr, "DEBUG: "+fmt_+"\n", args...)
 	}
+}
+
+// authRequiredError prints a friendly no-auth message and returns errSilent.
+// Used by commands that require credentials.
+func authRequiredError() error {
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		output.PrintError("not authenticated", mode)
+	} else {
+		fmt.Fprintln(os.Stderr, "Not authenticated. Use 'parkster auth login' or set PARKSTER_USERNAME/PARKSTER_PASSWORD.")
+	}
+	return errSilent
 }
