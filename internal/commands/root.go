@@ -25,12 +25,15 @@ Features:
 - View active parking status
 - JSON output for AI agent integration
 - Secure credential storage via OS keychain`,
+	Example: `  parkster start --zone 80500 --duration 30
+  parkster status --json
+  parkster zones search --lat 59.37 --lon 17.89`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug output to stderr")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug output to stderr")
 	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output as JSON with envelope")
 	rootCmd.PersistentFlags().BoolVar(&plainFlag, "plain", false, "Output as tab-separated values")
 

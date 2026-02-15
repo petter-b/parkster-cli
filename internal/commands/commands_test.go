@@ -2162,3 +2162,49 @@ func TestStart_PaymentFlag_FullID_StillWorks(t *testing.T) {
 		t.Fatalf("expected full payment ID to still work, got: %v", err)
 	}
 }
+
+// --- Debug short flag test ---
+
+func TestDebug_ShortFlag(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, _ := executeCommand("status", "-d")
+	if !strings.Contains(stderr, "DEBUG:") {
+		t.Error("expected DEBUG output with -d flag")
+	}
+}
+
+// --- parseUntil edge case tests ---
+
+func TestParseUntil_MidnightFormats(t *testing.T) {
+	// "0" should parse as 00:00
+	result, err := parseUntil("0")
+	if err != nil {
+		t.Fatalf("parseUntil(\"0\") failed: %v", err)
+	}
+	if result.Hour() != 0 || result.Minute() != 0 {
+		t.Errorf("parseUntil(\"0\") = %v, want 00:00", result.Format("15:04"))
+	}
+
+	// "00:00" should parse as midnight
+	result, err = parseUntil("00:00")
+	if err != nil {
+		t.Fatalf("parseUntil(\"00:00\") failed: %v", err)
+	}
+	if result.Hour() != 0 || result.Minute() != 0 {
+		t.Errorf("parseUntil(\"00:00\") = %v, want 00:00", result.Format("15:04"))
+	}
+
+	// "23:59" should parse as 23:59
+	result, err = parseUntil("23:59")
+	if err != nil {
+		t.Fatalf("parseUntil(\"23:59\") failed: %v", err)
+	}
+	if result.Hour() != 23 || result.Minute() != 59 {
+		t.Errorf("parseUntil(\"23:59\") = %v, want 23:59", result.Format("15:04"))
+	}
+}
