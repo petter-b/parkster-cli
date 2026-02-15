@@ -138,7 +138,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	username, password, _, err := auth.GetCredentials()
 	if err != nil {
-		return fmt.Errorf("authentication required: %w", err)
+		return authRequiredError()
 	}
 
 	client := newAPIClient(username, password)
