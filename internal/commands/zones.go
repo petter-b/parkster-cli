@@ -114,6 +114,13 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
 
+	// Validate: --lat and --lon must be used together
+	hasLat := cmd.Flags().Changed("lat")
+	hasLon := cmd.Flags().Changed("lon")
+	if hasLat != hasLon {
+		return fmt.Errorf("--lat and --lon must be used together")
+	}
+
 	client := newAPIClient("", "")
 
 	// If lat/lon provided, try zone code lookup first

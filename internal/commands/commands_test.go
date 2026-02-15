@@ -2419,8 +2419,6 @@ func TestAuthStatus_Plain_NotAuthenticated_ShowsFalse(t *testing.T) {
 // --- BUG-3: zones info missing lat/lon pairing validation ---
 
 func TestZonesInfo_LatWithoutLon_Error(t *testing.T) {
-	t.Skip("known bug: BUG-3 — zones info does not validate lat/lon must be used together")
-
 	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.37")
 	if err == nil {
 		t.Fatal("expected error for --lat without --lon, got nil")
@@ -2431,8 +2429,6 @@ func TestZonesInfo_LatWithoutLon_Error(t *testing.T) {
 }
 
 func TestZonesInfo_LonWithoutLat_Error(t *testing.T) {
-	t.Skip("known bug: BUG-3 — zones info does not validate lat/lon must be used together")
-
 	_, _, err := executeCommand("zones", "info", "80500", "--lon", "17.89")
 	if err == nil {
 		t.Fatal("expected error for --lon without --lat, got nil")
