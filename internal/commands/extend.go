@@ -69,7 +69,7 @@ func runChange(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("one of --duration or --until is required")
 	}
 
-	username, password, err := auth.GetCredentials(cmd)
+	username, password, err := auth.GetCredentials()
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}

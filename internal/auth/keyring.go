@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/99designs/keyring"
-	"github.com/spf13/cobra"
 )
 
 const serviceName = "parkster"
@@ -34,7 +33,7 @@ func OpenKeyring() (keyring.Keyring, error) {
 		ServiceName: serviceName,
 
 		// macOS - use default login keychain
-		KeychainTrustApplication: true,
+		KeychainTrustApplication: false,
 
 		// Linux - prefer secret service, fall back to encrypted file
 		FileDir: fileDir,
@@ -71,71 +70,60 @@ func configDir() string {
 	return filepath.Join(home, ".config", serviceName)
 }
 
-// GetCredentials retrieves both username and password, opening the keyring at most once.
-// Priority: CLI flags > env vars > keyring.
-func GetCredentials(cmd *cobra.Command) (username, password string, err error) {
-	// 1. Check CLI flags
-	if cmd != nil {
-		username, _ = cmd.Flags().GetString("username")
-		password, _ = cmd.Flags().GetString("password")
+// GetCredentials retrieves credentials.
+// Priority: keyring > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
+func GetCredentials() (username, password string, err error) {
+	// 1. Try keyring first
+	ring, kerr := OpenKeyring()
+	if kerr == nil {
+		username, password, err = getCredentialsFromKeyring(ring)
+		if err == nil {
+			return username, password, nil
+		}
 	}
 
-	// 2. Fill from env vars
-	if username == "" {
-		username = os.Getenv("PARKSTER_USERNAME")
-	}
-	if password == "" {
-		password = os.Getenv("PARKSTER_PASSWORD")
-	}
-
-	// 3. If both set, done
+	// 2. Fall back to env vars
+	username = os.Getenv("PARKSTER_USERNAME")
+	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {
 		return username, password, nil
 	}
 
-	// 4. Try keyring
-	ring, kerr := OpenKeyring()
-	if kerr != nil {
-		return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
-	}
-	return getCredentialsFromKeyring(username, password, ring)
+	return "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
 }
 
 // getCredentialsWithKeyring is like GetCredentials but accepts a KeyringStore for testing.
-func getCredentialsWithKeyring(cmd *cobra.Command, ring KeyringStore) (username, password string, err error) {
-	if cmd != nil {
-		username, _ = cmd.Flags().GetString("username")
-		password, _ = cmd.Flags().GetString("password")
+func getCredentialsWithKeyring(ring KeyringStore) (username, password string, err error) {
+	// 1. Try keyring first
+	username, password, err = getCredentialsFromKeyring(ring)
+	if err == nil {
+		return username, password, nil
 	}
-	if username == "" {
-		username = os.Getenv("PARKSTER_USERNAME")
-	}
-	if password == "" {
-		password = os.Getenv("PARKSTER_PASSWORD")
-	}
+
+	// 2. Fall back to env vars
+	username = os.Getenv("PARKSTER_USERNAME")
+	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {
 		return username, password, nil
 	}
-	return getCredentialsFromKeyring(username, password, ring)
+
+	return "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
 }
 
-// getCredentialsFromKeyring fills missing credentials from the keyring.
-func getCredentialsFromKeyring(username, password string, ring KeyringStore) (string, string, error) {
+// getCredentialsFromKeyring reads credentials from the keyring.
+func getCredentialsFromKeyring(ring KeyringStore) (string, string, error) {
 	item, err := ring.Get(credentialKey("credentials"))
 	if err != nil {
-		return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+		return "", "", fmt.Errorf("no credentials in keyring")
 	}
 	var creds credentials
 	if err := json.Unmarshal(item.Data, &creds); err != nil {
 		return "", "", fmt.Errorf("corrupted credentials: run 'parkster auth login' to re-store")
 	}
-	if username == "" {
-		username = creds.Username
+	if creds.Username == "" || creds.Password == "" {
+		return "", "", fmt.Errorf("incomplete credentials in keyring")
 	}
-	if password == "" {
-		password = creds.Password
-	}
-	return username, password, nil
+	return creds.Username, creds.Password, nil
 }
 
 // SaveCredentials stores username and password as a single JSON item in keyring

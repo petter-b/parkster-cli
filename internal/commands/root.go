@@ -37,10 +37,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output as JSON with envelope")
 	rootCmd.PersistentFlags().BoolVar(&plainFlag, "plain", false, "Output as tab-separated values")
 
-	// Global credential flags
-	rootCmd.PersistentFlags().String("username", "", "Parkster account username (email or phone number)")
-	rootCmd.PersistentFlags().String("password", "", "Parkster account password")
-
 	// Environment variable bindings
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true

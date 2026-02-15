@@ -103,7 +103,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		Username      string `json:"username,omitempty"`
 	}
 
-	username, _, err := auth.GetCredentials(nil)
+	username, _, err := auth.GetCredentials()
 	if err != nil {
 		status := authStatus{Authenticated: false}
 		mode := OutputMode()

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/99designs/keyring"
-	"github.com/spf13/cobra"
 )
 
 // --- GetCredentials tests (combined username+password) ---
@@ -17,7 +16,7 @@ func TestGetCredentials_FromEnvVars(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "envuser")
 	t.Setenv("PARKSTER_PASSWORD", "envpass")
 
-	username, password, err := GetCredentials(nil)
+	username, password, err := GetCredentials()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -29,47 +28,24 @@ func TestGetCredentials_FromEnvVars(t *testing.T) {
 	}
 }
 
-func TestGetCredentials_FlagPriority(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "envuser")
-	t.Setenv("PARKSTER_PASSWORD", "envpass")
+func TestGetCredentials_KeyringOverridesEnv(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "env-user")
+	t.Setenv("PARKSTER_PASSWORD", "env-pass")
 
-	cmd := &cobra.Command{}
-	cmd.Flags().String("username", "", "")
-	cmd.Flags().String("password", "", "")
-	_ = cmd.Flags().Set("username", "flaguser")
-	_ = cmd.Flags().Set("password", "flagpass")
+	ring := newMockKeyring()
+	creds := credentials{Username: "keyring-user", Password: "keyring-pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
 
-	username, password, err := GetCredentials(cmd)
+	username, password, err := getCredentialsWithKeyring(ring)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if username != "flaguser" {
-		t.Errorf("expected username 'flaguser', got %q", username)
+	if username != "keyring-user" {
+		t.Errorf("expected 'keyring-user', got %q", username)
 	}
-	if password != "flagpass" {
-		t.Errorf("expected password 'flagpass', got %q", password)
-	}
-}
-
-func TestGetCredentials_MixedFlagAndEnv(t *testing.T) {
-	// Flag for username, env for password
-	t.Setenv("PARKSTER_USERNAME", "envuser")
-	t.Setenv("PARKSTER_PASSWORD", "envpass")
-
-	cmd := &cobra.Command{}
-	cmd.Flags().String("username", "", "")
-	cmd.Flags().String("password", "", "")
-	_ = cmd.Flags().Set("username", "flaguser")
-
-	username, password, err := GetCredentials(cmd)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if username != "flaguser" {
-		t.Errorf("expected username 'flaguser', got %q", username)
-	}
-	if password != "envpass" {
-		t.Errorf("expected password 'envpass', got %q", password)
+	if password != "keyring-pass" {
+		t.Errorf("expected 'keyring-pass', got %q", password)
 	}
 }
 
@@ -81,7 +57,7 @@ func TestGetCredentials_MissingUsername(t *testing.T) {
 		t.Skip("skipping: macOS Keychain may block")
 	}
 
-	_, _, err := GetCredentials(nil)
+	_, _, err := GetCredentials()
 	if err == nil {
 		t.Error("expected error when username not available")
 	}
@@ -95,7 +71,7 @@ func TestGetCredentials_MissingPassword(t *testing.T) {
 		t.Skip("skipping: macOS Keychain may block")
 	}
 
-	_, _, err := GetCredentials(nil)
+	_, _, err := GetCredentials()
 	if err == nil {
 		t.Error("expected error when password not available")
 	}
@@ -256,7 +232,7 @@ func TestGetCredentials_FallsBackToKeyring(t *testing.T) {
 	data, _ := json.Marshal(creds)
 	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
 
-	username, password, err := getCredentialsWithKeyring(nil, ring)
+	username, password, err := getCredentialsWithKeyring(ring)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -268,18 +244,34 @@ func TestGetCredentials_FallsBackToKeyring(t *testing.T) {
 	}
 }
 
-func TestGetCredentials_EnvOverridesKeyring(t *testing.T) {
+func TestGetCredentials_CorruptedKeyringJSON_FallsThrough(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring()
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: []byte(`not-json`)})
+
+	// Corrupted keyring falls through to env vars; both empty → error
+	_, _, err := getCredentialsWithKeyring(ring)
+	if err == nil {
+		t.Fatal("expected error when keyring corrupted and no env vars")
+	}
+	if !strings.Contains(err.Error(), "no credentials found") {
+		t.Errorf("expected 'no credentials found' in error, got: %v", err)
+	}
+}
+
+func TestGetCredentials_CorruptedKeyringJSON_EnvFallback(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "env-user")
 	t.Setenv("PARKSTER_PASSWORD", "env-pass")
 
 	ring := newMockKeyring()
-	creds := credentials{Username: "keyring-user", Password: "keyring-pass"}
-	data, _ := json.Marshal(creds)
-	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: []byte(`not-json`)})
 
-	username, password, err := getCredentialsWithKeyring(nil, ring)
+	// Corrupted keyring falls through to env vars
+	username, password, err := getCredentialsWithKeyring(ring)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("expected env fallback to succeed, got: %v", err)
 	}
 	if username != "env-user" {
 		t.Errorf("expected 'env-user', got %q", username)
@@ -289,50 +281,13 @@ func TestGetCredentials_EnvOverridesKeyring(t *testing.T) {
 	}
 }
 
-func TestGetCredentials_PartialEnvFillsFromKeyring(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "env-user")
-	t.Setenv("PARKSTER_PASSWORD", "")
-
-	ring := newMockKeyring()
-	creds := credentials{Username: "keyring-user", Password: "keyring-pass"}
-	data, _ := json.Marshal(creds)
-	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
-
-	username, password, err := getCredentialsWithKeyring(nil, ring)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if username != "env-user" {
-		t.Errorf("expected 'env-user', got %q", username)
-	}
-	if password != "keyring-pass" {
-		t.Errorf("expected 'keyring-pass', got %q", password)
-	}
-}
-
-func TestGetCredentials_CorruptedKeyringJSON(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "")
-	t.Setenv("PARKSTER_PASSWORD", "")
-
-	ring := newMockKeyring()
-	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: []byte(`not-json`)})
-
-	_, _, err := getCredentialsWithKeyring(nil, ring)
-	if err == nil {
-		t.Fatal("expected error for corrupted JSON")
-	}
-	if !strings.Contains(err.Error(), "corrupted") {
-		t.Errorf("expected 'corrupted' in error, got: %v", err)
-	}
-}
-
 func TestGetCredentials_KeyringNotFound(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "")
 	t.Setenv("PARKSTER_PASSWORD", "")
 
 	ring := newMockKeyring() // empty
 
-	_, _, err := getCredentialsWithKeyring(nil, ring)
+	_, _, err := getCredentialsWithKeyring(ring)
 	if err == nil {
 		t.Fatal("expected error when no credentials found")
 	}

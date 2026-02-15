@@ -25,7 +25,7 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	username, password, err := auth.GetCredentials(cmd)
+	username, password, err := auth.GetCredentials()
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}
