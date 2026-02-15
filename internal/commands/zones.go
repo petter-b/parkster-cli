@@ -66,6 +66,10 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 	lon, _ := cmd.Flags().GetFloat64("lon")
 	radius, _ := cmd.Flags().GetInt("radius")
 
+	if radius < 0 {
+		return fmt.Errorf("--radius must be non-negative")
+	}
+
 	// Validate GPS coordinates
 	if lat < -90 || lat > 90 {
 		return fmt.Errorf("invalid latitude: must be between -90 and 90")

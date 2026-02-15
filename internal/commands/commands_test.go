@@ -2335,3 +2335,427 @@ func TestJsonAndPlain_MutuallyExclusive(t *testing.T) {
 		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
 	}
 }
+
+// =============================================================================
+// Tests added by 2026-02-15 CLI tree-search walkthrough.
+// Bug-related tests are skipped with t.Skip("known bug: ...") so the suite
+// stays green.  Remove the skip once the bug is fixed.
+// =============================================================================
+
+// --- BUG-1: --plain renders nested structs as raw Go syntax ---
+
+func TestZonesSearch_Plain_NoBraces(t *testing.T) {
+	t.Skip("known bug: BUG-1 — printTSVRow dumps Go struct syntax for nested types")
+
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", City: parkster.City{Name: "Kista"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("--plain should not contain curly braces, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Kista") {
+		t.Errorf("expected city name in plain output, got: %q", stdout)
+	}
+}
+
+func TestZonesInfo_Plain_NoBraces(t *testing.T) {
+	t.Skip("known bug: BUG-1 — printTSVRow dumps Go struct syntax for nested types")
+
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{
+			ID: 17429, Name: "Ericsson", ZoneCode: "80500",
+			City: parkster.City{Name: "Kista"},
+			FeeZone: parkster.FeeZone{
+				ID:       27545,
+				Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+				ParkingFees: []parkster.ParkingFee{
+					{AmountPerHour: 10.0, Description: "Mon-Fri", StartTime: 480, EndTime: 1080},
+				},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if strings.Contains(stdout, "{") {
+		t.Errorf("--plain should not contain curly braces, got: %q", stdout)
+	}
+}
+
+// --- BUG-2: auth status --plain empty when not authenticated ---
+
+func TestAuthStatus_Plain_NotAuthenticated_ShowsFalse(t *testing.T) {
+	t.Skip("known bug: BUG-2 — isZero skips bool false, so unauthenticated status prints empty line")
+
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping: macOS Keychain may block in test environment")
+	}
+
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	stdout, _, err := executeCommand("auth", "status", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "false") {
+		t.Errorf("--plain should contain 'false' for unauthenticated, got: %q", stdout)
+	}
+}
+
+// --- BUG-3: zones info missing lat/lon pairing validation ---
+
+func TestZonesInfo_LatWithoutLon_Error(t *testing.T) {
+	t.Skip("known bug: BUG-3 — zones info does not validate lat/lon must be used together")
+
+	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.37")
+	if err == nil {
+		t.Fatal("expected error for --lat without --lon, got nil")
+	}
+	if !strings.Contains(err.Error(), "together") {
+		t.Errorf("expected 'together' in error, got: %v", err)
+	}
+}
+
+func TestZonesInfo_LonWithoutLat_Error(t *testing.T) {
+	t.Skip("known bug: BUG-3 — zones info does not validate lat/lon must be used together")
+
+	_, _, err := executeCommand("zones", "info", "80500", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for --lon without --lat, got nil")
+	}
+	if !strings.Contains(err.Error(), "together") {
+		t.Errorf("expected 'together' in error, got: %v", err)
+	}
+}
+
+// --- BUG-4: zones search accepts negative radius ---
+
+func TestZonesSearch_NegativeRadius_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "--radius", "-100")
+	if err == nil {
+		t.Fatal("expected error for negative radius, got nil")
+	}
+}
+
+// --- BUG-5: auth logout succeeds when no credentials exist ---
+
+func TestAuthLogout_NoCredentials_ShouldIndicate(t *testing.T) {
+	t.Skip("known bug: BUG-5 — logout always says 'Credentials removed' even when none existed")
+
+	if runtime.GOOS == "darwin" {
+		t.Skip("skipping: macOS Keychain may block in test environment")
+	}
+
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	_, stderr, err := executeCommand("auth", "logout")
+	if err != nil {
+		t.Fatalf("logout should not return error, got: %v", err)
+	}
+	if strings.Contains(stderr, "Credentials removed") {
+		t.Error("logout should not say 'Credentials removed' when no credentials existed")
+	}
+}
+
+// --- BUG-6: auth status does not indicate credential source ---
+
+func TestAuthStatus_EnvSource_ShouldIndicateSource(t *testing.T) {
+	t.Skip("known bug: BUG-6 — auth status does not show credential source (keyring vs env)")
+
+	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
+
+	_, stderr, err := executeCommand("auth", "status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "env") && !strings.Contains(stderr, "environment") {
+		t.Errorf("auth status should indicate env var source, got: %q", stderr)
+	}
+}
+
+func TestAuthStatus_EnvSource_JSON_ShouldIncludeSource(t *testing.T) {
+	t.Skip("known bug: BUG-6 — auth status JSON does not include credential source field")
+
+	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
+
+	stdout, _, err := executeCommand("auth", "status", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "source") {
+		t.Errorf("auth status JSON should include 'source' field, got: %s", stdout)
+	}
+}
+
+// --- Additional coverage: version --plain ---
+
+func TestVersion_Plain(t *testing.T) {
+	stdout, _, err := executeCommand("version", "--plain")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Plain should be tab-separated, not empty
+	if stdout == "" {
+		t.Error("version --plain should produce output")
+	}
+	if !strings.Contains(stdout, "\t") {
+		t.Errorf("version --plain should be tab-separated, got: %q", stdout)
+	}
+	// Should contain go version info
+	if !strings.Contains(stdout, "go") {
+		t.Errorf("version --plain should contain go version, got: %q", stdout)
+	}
+}
+
+// --- Additional coverage: --json --plain on non-version commands ---
+
+func TestJsonAndPlain_MutuallyExclusive_Status(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1}}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("status", "--json", "--plain")
+	if err == nil {
+		t.Fatal("expected error when both --json and --plain specified on status")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
+	}
+}
+
+func TestJsonAndPlain_MutuallyExclusive_ZonesSearch(t *testing.T) {
+	_, _, err := executeCommand("zones", "search", "--lat", "59.37", "--lon", "17.89", "--json", "--plain")
+	if err == nil {
+		t.Fatal("expected error when both --json and --plain specified on zones search")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
+	}
+}
+
+// --- Additional coverage: debug flag on zones ---
+
+func TestZonesSearch_Debug_WritesToStderr(t *testing.T) {
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "-d")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "DEBUG:") {
+		t.Errorf("expected DEBUG output with -d flag, got stderr: %q", stderr)
+	}
+}
+
+// --- Additional coverage: error formatting in --json mode ---
+
+func TestZonesSearch_InvalidCoordinates_JSON_Error(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "search", "--lat", "999", "--lon", "17.893", "--json")
+	if err == nil {
+		t.Fatal("expected error for invalid latitude, got nil")
+	}
+	// When --json is set, error should still be formatted as JSON
+	if stdout != "" {
+		var envelope output.Envelope
+		if jsonErr := json.Unmarshal([]byte(stdout), &envelope); jsonErr != nil {
+			t.Fatalf("error output with --json should be valid JSON: %v\nOutput: %s", jsonErr, stdout)
+		}
+		if envelope.Success {
+			t.Error("error envelope should have success=false")
+		}
+	}
+}
+
+// --- Additional coverage: stop --json success output ---
+
+func TestStop_SingleActiveParking_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{{ID: 500}},
+		},
+		stopParkingResp: &parkster.Parking{
+			ID:          500,
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			Currency:    parkster.Currency{Code: "SEK"},
+			Cost:        12.50,
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("stop", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON envelope, got: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
+	}
+	dataBytes, _ := json.Marshal(envelope.Data)
+	if !strings.Contains(string(dataBytes), "12.5") {
+		t.Errorf("expected cost in JSON output, got: %s", string(dataBytes))
+	}
+}
+
+// --- Additional coverage: change --json success output ---
+
+func TestChange_Duration_JSON(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, CheckInTime: now.Add(-10 * time.Minute).UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+		extendResp: &parkster.Parking{
+			ID:          500,
+			TimeoutTime: now.Add(60 * time.Minute).UnixMilli(),
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("change", "--duration", "60", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON envelope, got: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
+	}
+}
+
+// --- Additional coverage: start --json success output ---
+
+func TestStart_SingleCarSinglePayment_JSON(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{
+			ID:          999,
+			ParkingZone: parkster.Zone{ID: 17429, ZoneCode: "80500"},
+			Car:         parkster.Car{ID: 100, LicenseNbr: "ABC123"},
+			CheckInTime: now.UnixMilli(),
+			TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON envelope, got: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
+	}
+}
+
+// --- Additional coverage: unknown command ---
+
+func TestUnknownCommand_Error(t *testing.T) {
+	_, _, err := executeCommand("nonexistent")
+	if err == nil {
+		t.Fatal("expected error for unknown command, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected 'unknown command' in error, got: %v", err)
+	}
+}
+
+// --- Additional coverage: help for all subcommands ---
+
+func TestHelp_AuthLoginCommand(t *testing.T) {
+	stdout, _, err := executeCommand("auth", "login", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "Store") {
+		t.Error("auth login help should describe storing credentials")
+	}
+}
+
+func TestHelp_AuthLogoutCommand(t *testing.T) {
+	stdout, _, err := executeCommand("auth", "logout", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "Remove") {
+		t.Error("auth logout help should describe removing credentials")
+	}
+}
+
+func TestHelp_ZonesSearchCommand(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "search", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "--lat") {
+		t.Error("zones search help should show --lat flag")
+	}
+	if !strings.Contains(stdout, "--lon") {
+		t.Error("zones search help should show --lon flag")
+	}
+	if !strings.Contains(stdout, "--radius") {
+		t.Error("zones search help should show --radius flag")
+	}
+}
+
+func TestHelp_VersionCommand(t *testing.T) {
+	stdout, _, err := executeCommand("version", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "version") {
+		t.Error("version help should mention version")
+	}
+}
