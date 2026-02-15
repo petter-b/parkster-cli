@@ -113,7 +113,10 @@ func DefaultPath() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, "parkster", "config.yaml")
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.TempDir()
+	}
 	return filepath.Join(home, ".config", "parkster", "config.yaml")
 }
 
