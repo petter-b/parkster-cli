@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -86,7 +87,7 @@ func runChange(cmd *cobra.Command, args []string) error {
 		if OutputMode() == output.ModeJSON {
 			return output.PrintSuccess([]any{}, OutputMode())
 		}
-		fmt.Println("No active parkings")
+		fmt.Fprintln(os.Stderr, "No active parkings")
 		return nil
 	}
 
@@ -143,7 +144,7 @@ func runChange(cmd *cobra.Command, args []string) error {
 	if mode != output.ModeHuman {
 		return output.PrintSuccess(parking, mode)
 	}
-	fmt.Println("Parking changed")
+	fmt.Fprintln(os.Stderr, "Parking changed")
 	fmt.Println(output.FormatParkingChanged(*parking))
 	return nil
 }

@@ -362,12 +362,12 @@ func TestStart_SingleCarSinglePayment_Success(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	_, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	if !strings.Contains(stdout, "Parking started") {
-		t.Errorf("expected 'Parking started' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "Parking started") {
+		t.Errorf("expected 'Parking started' in stderr, got: %q", stderr)
 	}
 }
 
@@ -594,12 +594,12 @@ func TestStop_SingleActiveParking_Success(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("stop")
+	_, stderr, err := executeCommand("stop")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	if !strings.Contains(stdout, "Parking stopped") {
-		t.Errorf("expected 'Parking stopped' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "Parking stopped") {
+		t.Errorf("expected 'Parking stopped' in stderr, got: %q", stderr)
 	}
 }
 
@@ -614,12 +614,12 @@ func TestStop_NoActiveParkings_Message(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("stop")
+	_, stderr, err := executeCommand("stop")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	if !strings.Contains(stdout, "No active parkings") {
-		t.Errorf("expected 'No active parkings' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in stderr, got: %q", stderr)
 	}
 }
 
@@ -763,12 +763,12 @@ func TestChange_Duration_Success(t *testing.T) {
 	withMockClient(t, mock)
 
 	// --duration 60 means "set end time to now + 60 minutes"
-	stdout, _, err := executeCommand("change", "--duration", "60")
+	_, stderr, err := executeCommand("change", "--duration", "60")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	if !strings.Contains(stdout, "Parking changed") {
-		t.Errorf("expected 'Parking changed' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "Parking changed") {
+		t.Errorf("expected 'Parking changed' in stderr, got: %q", stderr)
 	}
 }
 
@@ -809,12 +809,12 @@ func TestChange_NoParkings_Message(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("change", "--duration", "30")
+	_, stderr, err := executeCommand("change", "--duration", "30")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	if !strings.Contains(stdout, "No active parkings") {
-		t.Errorf("expected 'No active parkings' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in stderr, got: %q", stderr)
 	}
 }
 
@@ -900,12 +900,12 @@ func TestStatus_NoParkings_PrintsMessage(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("status")
+	_, stderr, err := executeCommand("status")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	if !strings.Contains(stdout, "No active parkings") {
-		t.Errorf("expected 'No active parkings' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in stderr, got: %q", stderr)
 	}
 }
 
@@ -1007,12 +1007,12 @@ func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
 	t.Setenv("PARKSTER_PASSWORD", "testpass")
 
-	stdout, _, err := executeCommand("auth", "status")
+	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	if !strings.Contains(stdout, "Logged in as: testuser@example.com") {
-		t.Errorf("expected 'Logged in as: testuser@example.com' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "Logged in as: testuser@example.com") {
+		t.Errorf("expected 'Logged in as: testuser@example.com' in stderr, got: %q", stderr)
 	}
 }
 
@@ -1026,12 +1026,12 @@ func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "")
 	t.Setenv("PARKSTER_PASSWORD", "")
 
-	stdout, _, err := executeCommand("auth", "status")
+	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
 		t.Fatalf("expected success (not authenticated is not an error), got: %v", err)
 	}
-	if !strings.Contains(stdout, "Not authenticated") {
-		t.Errorf("expected 'Not authenticated' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
 	}
 }
 
@@ -1180,12 +1180,12 @@ func TestZonesSearch_NoResults(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
+	_, stderr, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success with empty results, got: %v", err)
 	}
-	if !strings.Contains(stdout, "No zones found") {
-		t.Errorf("expected 'No zones found' in output, got: %q", stdout)
+	if !strings.Contains(stderr, "No zones found") {
+		t.Errorf("expected 'No zones found' in stderr, got: %q", stderr)
 	}
 }
 

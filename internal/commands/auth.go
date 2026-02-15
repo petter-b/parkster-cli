@@ -110,7 +110,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		if mode == output.ModeJSON {
 			return output.PrintSuccess(status, mode)
 		}
-		fmt.Println("Not authenticated")
+		fmt.Fprintln(os.Stderr, "Not authenticated")
 		return nil
 	}
 
@@ -119,7 +119,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	if mode == output.ModeJSON {
 		return output.PrintSuccess(status, mode)
 	}
-	fmt.Printf("Logged in as: %s\n", username)
+	fmt.Fprintf(os.Stderr, "Logged in as: %s\n", username)
 	return nil
 }
 
