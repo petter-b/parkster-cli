@@ -14,6 +14,14 @@ const serviceName = "parkster"
 // ErrNoCredentials indicates no credentials were found to delete.
 var ErrNoCredentials = fmt.Errorf("no credentials stored")
 
+// CredentialSource indicates where credentials were found.
+type CredentialSource string
+
+const (
+	SourceKeyring     CredentialSource = "keyring"
+	SourceEnvironment CredentialSource = "environment"
+)
+
 // credentials holds username and password as a single JSON blob for keychain storage.
 type credentials struct {
 	Username string `json:"username"`
@@ -75,13 +83,13 @@ func configDir() string {
 
 // GetCredentials retrieves credentials.
 // Priority: keyring > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
-func GetCredentials() (username, password string, err error) {
+func GetCredentials() (username, password string, source CredentialSource, err error) {
 	// 1. Try keyring first
 	ring, kerr := OpenKeyring()
 	if kerr == nil {
 		username, password, err = getCredentialsFromKeyring(ring)
 		if err == nil {
-			return username, password, nil
+			return username, password, SourceKeyring, nil
 		}
 	}
 
@@ -89,28 +97,28 @@ func GetCredentials() (username, password string, err error) {
 	username = os.Getenv("PARKSTER_USERNAME")
 	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {
-		return username, password, nil
+		return username, password, SourceEnvironment, nil
 	}
 
-	return "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
 }
 
 // getCredentialsWithKeyring is like GetCredentials but accepts a KeyringStore for testing.
-func getCredentialsWithKeyring(ring KeyringStore) (username, password string, err error) {
+func getCredentialsWithKeyring(ring KeyringStore) (username, password string, source CredentialSource, err error) {
 	// 1. Try keyring first
 	username, password, err = getCredentialsFromKeyring(ring)
 	if err == nil {
-		return username, password, nil
+		return username, password, SourceKeyring, nil
 	}
 
 	// 2. Fall back to env vars
 	username = os.Getenv("PARKSTER_USERNAME")
 	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {
-		return username, password, nil
+		return username, password, SourceEnvironment, nil
 	}
 
-	return "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
 }
 
 // getCredentialsFromKeyring reads credentials from the keyring.

@@ -125,9 +125,10 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	type authStatus struct {
 		Authenticated bool   `json:"authenticated"`
 		Username      string `json:"username,omitempty"`
+		Source        string `json:"source,omitempty"`
 	}
 
-	username, _, err := auth.GetCredentials()
+	username, _, source, err := auth.GetCredentials()
 	if err != nil {
 		status := authStatus{Authenticated: false}
 		mode := OutputMode()
@@ -138,11 +139,11 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	status := authStatus{Authenticated: true, Username: username}
+	status := authStatus{Authenticated: true, Username: username, Source: string(source)}
 	mode := OutputMode()
 	if mode != output.ModeHuman {
 		return output.PrintSuccess(status, mode)
 	}
-	fmt.Fprintf(os.Stderr, "Logged in as: %s\n", username)
+	fmt.Fprintf(os.Stderr, "Logged in as: %s (%s)\n", username, source)
 	return nil
 }

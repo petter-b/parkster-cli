@@ -87,7 +87,7 @@ func runChange(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	username, password, err := auth.GetCredentials()
+	username, password, _, err := auth.GetCredentials()
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
 	}

@@ -2468,8 +2468,6 @@ func TestAuthLogout_NoCredentials_ShouldIndicate(t *testing.T) {
 // --- BUG-6: auth status does not indicate credential source ---
 
 func TestAuthStatus_EnvSource_ShouldIndicateSource(t *testing.T) {
-	t.Skip("known bug: BUG-6 — auth status does not show credential source (keyring vs env)")
-
 	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
 	t.Setenv("PARKSTER_PASSWORD", "testpass")
 
@@ -2483,8 +2481,6 @@ func TestAuthStatus_EnvSource_ShouldIndicateSource(t *testing.T) {
 }
 
 func TestAuthStatus_EnvSource_JSON_ShouldIncludeSource(t *testing.T) {
-	t.Skip("known bug: BUG-6 — auth status JSON does not include credential source field")
-
 	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
 	t.Setenv("PARKSTER_PASSWORD", "testpass")
 
