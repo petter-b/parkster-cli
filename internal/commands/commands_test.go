@@ -2208,3 +2208,53 @@ func TestParseUntil_MidnightFormats(t *testing.T) {
 		t.Errorf("parseUntil(\"23:59\") = %v, want 23:59", result.Format("15:04"))
 	}
 }
+
+// --- Duration validation tests ---
+
+func TestStart_ZeroDuration_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "0")
+	if err == nil {
+		t.Fatal("expected error for --duration 0, got nil")
+	}
+	if !strings.Contains(err.Error(), "positive") {
+		t.Errorf("expected 'positive' in error, got: %v", err)
+	}
+}
+
+func TestStart_NegativeDuration_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "-5")
+	if err == nil {
+		t.Fatal("expected error for --duration -5, got nil")
+	}
+	if !strings.Contains(err.Error(), "positive") {
+		t.Errorf("expected 'positive' in error, got: %v", err)
+	}
+}
+
+func TestChange_ZeroDuration_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("change", "--duration", "0")
+	if err == nil {
+		t.Fatal("expected error for --duration 0, got nil")
+	}
+	if !strings.Contains(err.Error(), "positive") {
+		t.Errorf("expected 'positive' in error, got: %v", err)
+	}
+}
+
+func TestChange_NegativeDuration_Error(t *testing.T) {
+	setAuth(t)
+
+	_, _, err := executeCommand("change", "--duration", "-5")
+	if err == nil {
+		t.Fatal("expected error for --duration -5, got nil")
+	}
+	if !strings.Contains(err.Error(), "positive") {
+		t.Errorf("expected 'positive' in error, got: %v", err)
+	}
+}

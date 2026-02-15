@@ -106,6 +106,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 	if !hasDuration && !hasUntil {
 		return fmt.Errorf("one of --duration or --until is required")
 	}
+	if hasDuration && duration <= 0 {
+		return fmt.Errorf("--duration must be a positive number of minutes")
+	}
 
 	// Compute timeout minutes
 	var timeout int
