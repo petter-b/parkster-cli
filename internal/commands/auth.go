@@ -107,7 +107,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		status := authStatus{Authenticated: false}
 		mode := OutputMode()
-		if mode == output.ModeJSON {
+		if mode != output.ModeHuman {
 			return output.PrintSuccess(status, mode)
 		}
 		fmt.Fprintln(os.Stderr, "Not authenticated")
@@ -116,7 +116,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 
 	status := authStatus{Authenticated: true, Username: username}
 	mode := OutputMode()
-	if mode == output.ModeJSON {
+	if mode != output.ModeHuman {
 		return output.PrintSuccess(status, mode)
 	}
 	fmt.Fprintf(os.Stderr, "Logged in as: %s\n", username)

@@ -2259,6 +2259,26 @@ func TestChange_UntilInvalid_NoAuthNeeded(t *testing.T) {
 	}
 }
 
+func TestAuthStatus_Plain_TSV(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
+
+	stdout, _, err := executeCommand("auth", "status", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	// Plain mode should produce TSV, not "Logged in as: ..."
+	if strings.Contains(stdout, "Logged in as") {
+		t.Error("--plain should not output human-readable text")
+	}
+	if !strings.Contains(stdout, "true") {
+		t.Error("--plain should contain 'true' for authenticated field")
+	}
+	if !strings.Contains(stdout, "testuser@example.com") {
+		t.Error("--plain should contain the username")
+	}
+}
+
 func TestJsonAndPlain_MutuallyExclusive(t *testing.T) {
 	_, _, err := executeCommand("version", "--json", "--plain")
 	if err == nil {
