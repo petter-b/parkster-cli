@@ -457,16 +457,6 @@ See design document for full list. Key additions:
 - `~/.config/parkster/config.yaml`
 - `preferred_car`, `preferred_payment`, `default_country`
 
-## Output Flags (TODO: migrate from MVP)
-
-The MVP uses `--format json|plain|tsv`. This needs to be migrated to match the steipete reference CLIs (gog, wacli):
-
-- **`--json`** boolean flag for JSON output (not `--format json`)
-- **`--plain`** boolean flag for TSV output (not `--format tsv`)
-- Default (neither flag): human-readable colored output
-- JSON mode uses envelope: `{"success":true,"data":...,"error":null}`
-- Errors in JSON mode: `{"success":false,"data":null,"error":"message"}`
-
 ## Remember
 
 1. **Read ../cli-template/CLAUDE.md first** - it has the patterns
