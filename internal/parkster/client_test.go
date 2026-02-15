@@ -792,6 +792,32 @@ func TestGetZoneByCode_CustomRadius(t *testing.T) {
 	}
 }
 
+// --- No-auth header tests ---
+
+func TestGet_NoAuthHeader_WhenCredentialsEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if auth := r.Header.Get("Authorization"); auth != "" {
+			t.Errorf("expected no Authorization header, got %q", auth)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	client := NewClient("", "")
+	client.baseURL = server.URL
+
+	resp, err := client.get("/test", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
 // --- EstimateCost API method tests ---
 
 func TestEstimateCost_Success(t *testing.T) {

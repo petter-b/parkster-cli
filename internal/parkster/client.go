@@ -66,9 +66,10 @@ func (c *Client) get(path string, extraParams url.Values) (*http.Response, error
 		return nil, err
 	}
 
-	// HTTP Basic Auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
-	req.Header.Set("Authorization", "Basic "+auth)
+	if c.username != "" {
+		auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
+		req.Header.Set("Authorization", "Basic "+auth)
+	}
 	req.Header.Set("Accept", "application/json")
 
 	return c.http.Do(req)
@@ -91,9 +92,10 @@ func (c *Client) post(path string, data url.Values) (*http.Response, error) {
 		return nil, err
 	}
 
-	// HTTP Basic Auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
-	req.Header.Set("Authorization", "Basic "+auth)
+	if c.username != "" {
+		auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
+		req.Header.Set("Authorization", "Basic "+auth)
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	return c.http.Do(req)
@@ -116,9 +118,10 @@ func (c *Client) put(path string, data url.Values) (*http.Response, error) {
 		return nil, err
 	}
 
-	// HTTP Basic Auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
-	req.Header.Set("Authorization", "Basic "+auth)
+	if c.username != "" {
+		auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
+		req.Header.Set("Authorization", "Basic "+auth)
+	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	return c.http.Do(req)
