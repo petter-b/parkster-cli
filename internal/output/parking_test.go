@@ -306,3 +306,24 @@ func TestFormatParkingChanged(t *testing.T) {
 		t.Errorf("expected zone code in output, got: %q", out)
 	}
 }
+
+func TestFormatMinutesSinceMidnight(t *testing.T) {
+	tests := []struct {
+		minutes  int
+		expected string
+	}{
+		{0, "00:00"},
+		{60, "01:00"},
+		{480, "08:00"},
+		{1080, "18:00"},
+		{1439, "23:59"},
+		{90, "01:30"},
+		{750, "12:30"},
+	}
+	for _, tt := range tests {
+		got := formatMinutesSinceMidnight(tt.minutes)
+		if got != tt.expected {
+			t.Errorf("formatMinutesSinceMidnight(%d) = %q, want %q", tt.minutes, got, tt.expected)
+		}
+	}
+}
