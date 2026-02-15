@@ -2398,8 +2398,6 @@ func TestZonesInfo_Plain_NoBraces(t *testing.T) {
 // --- BUG-2: auth status --plain empty when not authenticated ---
 
 func TestAuthStatus_Plain_NotAuthenticated_ShowsFalse(t *testing.T) {
-	t.Skip("known bug: BUG-2 — isZero skips bool false, so unauthenticated status prints empty line")
-
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping: macOS Keychain may block in test environment")
 	}

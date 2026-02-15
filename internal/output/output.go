@@ -165,10 +165,6 @@ func printTSVRow(data any) error {
 		if !field.CanInterface() {
 			continue
 		}
-		if isZero(field) {
-			fields = append(fields, "")
-			continue
-		}
 		fields = append(fields, fmt.Sprintf("%v", field.Interface()))
 	}
 
