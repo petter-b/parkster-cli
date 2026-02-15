@@ -172,12 +172,11 @@ func DeleteCredentials() error {
 
 // deleteCredentialsFrom removes credentials using the provided KeyringStore.
 func deleteCredentialsFrom(ring KeyringStore) error {
-	_, err := ring.Get(credentialKey("credentials"))
+	err := ring.Remove(credentialKey("credentials"))
 	if err != nil {
 		return ErrNoCredentials
 	}
-	_ = ring.Remove(credentialKey("credentials"))
-	// Clean up legacy separate items
+	// Clean up legacy separate items (ignore errors)
 	_ = ring.Remove(credentialKey("username"))
 	_ = ring.Remove(credentialKey("password"))
 	return nil

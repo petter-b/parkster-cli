@@ -153,6 +153,9 @@ func (m *mockKeyringStore) Remove(key string) error {
 	if m.err != nil {
 		return m.err
 	}
+	if _, ok := m.items[key]; !ok {
+		return keyring.ErrKeyNotFound
+	}
 	delete(m.items, key)
 	return nil
 }
