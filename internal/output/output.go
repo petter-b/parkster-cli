@@ -160,16 +160,51 @@ func printTSVRow(data any) error {
 	}
 
 	var fields []string
+	collectTSVFields(v, &fields)
+
+	fmt.Println(strings.Join(fields, "\t"))
+	return nil
+}
+
+// collectTSVFields recursively flattens struct fields into TSV columns.
+// Nested structs are expanded inline. Slices of structs are encoded as compact JSON.
+func collectTSVFields(v reflect.Value, fields *[]string) {
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		if !field.CanInterface() {
 			continue
 		}
-		fields = append(fields, fmt.Sprintf("%v", field.Interface()))
-	}
 
-	fmt.Println(strings.Join(fields, "\t"))
-	return nil
+		fv := field
+		if fv.Kind() == reflect.Ptr {
+			if fv.IsNil() {
+				*fields = append(*fields, "")
+				continue
+			}
+			fv = fv.Elem()
+		}
+
+		switch fv.Kind() {
+		case reflect.Struct:
+			collectTSVFields(fv, fields)
+		case reflect.Slice:
+			if fv.Len() == 0 {
+				*fields = append(*fields, "")
+			} else {
+				data, err := json.Marshal(fv.Interface())
+				if err != nil {
+					*fields = append(*fields, fmt.Sprintf("%v", fv.Interface()))
+				} else {
+					*fields = append(*fields, string(data))
+				}
+			}
+		default:
+			*fields = append(*fields, fmt.Sprintf("%v", fv.Interface()))
+		}
+	}
 }
 
 func isZero(v reflect.Value) bool {
