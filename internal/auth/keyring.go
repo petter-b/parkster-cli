@@ -18,6 +18,13 @@ type credentials struct {
 	Password string `json:"password"`
 }
 
+// KeyringStore abstracts keyring operations for testability.
+type KeyringStore interface {
+	Get(key string) (keyring.Item, error)
+	Set(item keyring.Item) error
+	Remove(key string) error
+}
+
 // OpenKeyring opens the OS keychain
 func OpenKeyring() (keyring.Keyring, error) {
 	// Determine file backend path for headless Linux
@@ -78,28 +85,53 @@ func GetCredentials(cmd *cobra.Command) (username, password string, err error) {
 		password = os.Getenv("PARKSTER_PASSWORD")
 	}
 
-	// 3. If either still missing, try keyring (single item read)
-	if username == "" || password == "" {
-		ring, kerr := OpenKeyring()
-		if kerr != nil {
-			return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
-		}
-		item, err := ring.Get(credentialKey("credentials"))
-		if err != nil {
-			return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
-		}
-		var creds credentials
-		if err := json.Unmarshal(item.Data, &creds); err != nil {
-			return "", "", fmt.Errorf("corrupted credentials: run 'parkster auth login' to re-store")
-		}
-		if username == "" {
-			username = creds.Username
-		}
-		if password == "" {
-			password = creds.Password
-		}
+	// 3. If both set, done
+	if username != "" && password != "" {
+		return username, password, nil
 	}
 
+	// 4. Try keyring
+	ring, kerr := OpenKeyring()
+	if kerr != nil {
+		return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+	}
+	return getCredentialsFromKeyring(username, password, ring)
+}
+
+// getCredentialsWithKeyring is like GetCredentials but accepts a KeyringStore for testing.
+func getCredentialsWithKeyring(cmd *cobra.Command, ring KeyringStore) (username, password string, err error) {
+	if cmd != nil {
+		username, _ = cmd.Flags().GetString("username")
+		password, _ = cmd.Flags().GetString("password")
+	}
+	if username == "" {
+		username = os.Getenv("PARKSTER_USERNAME")
+	}
+	if password == "" {
+		password = os.Getenv("PARKSTER_PASSWORD")
+	}
+	if username != "" && password != "" {
+		return username, password, nil
+	}
+	return getCredentialsFromKeyring(username, password, ring)
+}
+
+// getCredentialsFromKeyring fills missing credentials from the keyring.
+func getCredentialsFromKeyring(username, password string, ring KeyringStore) (string, string, error) {
+	item, err := ring.Get(credentialKey("credentials"))
+	if err != nil {
+		return "", "", fmt.Errorf("no credentials found (use --username/--password flags, PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+	}
+	var creds credentials
+	if err := json.Unmarshal(item.Data, &creds); err != nil {
+		return "", "", fmt.Errorf("corrupted credentials: run 'parkster auth login' to re-store")
+	}
+	if username == "" {
+		username = creds.Username
+	}
+	if password == "" {
+		password = creds.Password
+	}
 	return username, password, nil
 }
 
@@ -109,6 +141,11 @@ func SaveCredentials(username, password string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open keyring: %w", err)
 	}
+	return saveCredentialsTo(ring, username, password)
+}
+
+// saveCredentialsTo stores credentials using the provided KeyringStore.
+func saveCredentialsTo(ring KeyringStore, username, password string) error {
 	creds := credentials{Username: username, Password: password}
 	data, err := json.Marshal(creds)
 	if err != nil {
@@ -128,6 +165,11 @@ func DeleteCredentials() error {
 	if err != nil {
 		return fmt.Errorf("failed to open keyring: %w", err)
 	}
+	return deleteCredentialsFrom(ring)
+}
+
+// deleteCredentialsFrom removes credentials using the provided KeyringStore.
+func deleteCredentialsFrom(ring KeyringStore) error {
 	_ = ring.Remove(credentialKey("credentials"))
 	// Clean up legacy separate items
 	_ = ring.Remove(credentialKey("username"))

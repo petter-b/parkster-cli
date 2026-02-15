@@ -2,10 +2,12 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/99designs/keyring"
 	"github.com/spf13/cobra"
 )
 
@@ -143,5 +145,195 @@ func TestConfigDir_Default(t *testing.T) {
 	}
 	if !strings.HasSuffix(dir, ".config/parkster") {
 		t.Errorf("expected path ending in .config/parkster, got %s", dir)
+	}
+}
+
+// --- mockKeyringStore ---
+
+type mockKeyringStore struct {
+	items map[string]keyring.Item
+	err   error // if set, all operations return this error
+}
+
+func newMockKeyring() *mockKeyringStore {
+	return &mockKeyringStore{items: make(map[string]keyring.Item)}
+}
+
+func (m *mockKeyringStore) Get(key string) (keyring.Item, error) {
+	if m.err != nil {
+		return keyring.Item{}, m.err
+	}
+	item, ok := m.items[key]
+	if !ok {
+		return keyring.Item{}, keyring.ErrKeyNotFound
+	}
+	return item, nil
+}
+
+func (m *mockKeyringStore) Set(item keyring.Item) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.items[item.Key] = item
+	return nil
+}
+
+func (m *mockKeyringStore) Remove(key string) error {
+	if m.err != nil {
+		return m.err
+	}
+	delete(m.items, key)
+	return nil
+}
+
+// --- SaveCredentials tests ---
+
+func TestSaveCredentials_StoresJSONBlob(t *testing.T) {
+	ring := newMockKeyring()
+	err := saveCredentialsTo(ring, "user@test.com", "secret123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	item, err := ring.Get(credentialKey("credentials"))
+	if err != nil {
+		t.Fatalf("expected item in keyring: %v", err)
+	}
+
+	var creds credentials
+	if err := json.Unmarshal(item.Data, &creds); err != nil {
+		t.Fatalf("stored data is not valid JSON: %v", err)
+	}
+	if creds.Username != "user@test.com" {
+		t.Errorf("expected username 'user@test.com', got %q", creds.Username)
+	}
+	if creds.Password != "secret123" {
+		t.Errorf("expected password 'secret123', got %q", creds.Password)
+	}
+}
+
+func TestSaveCredentials_KeyringError(t *testing.T) {
+	ring := &mockKeyringStore{items: make(map[string]keyring.Item), err: fmt.Errorf("keyring locked")}
+	err := saveCredentialsTo(ring, "user", "pass")
+	if err == nil {
+		t.Fatal("expected error when keyring fails")
+	}
+}
+
+// --- DeleteCredentials tests ---
+
+func TestDeleteCredentials_RemovesKey(t *testing.T) {
+	ring := newMockKeyring()
+	// Pre-populate
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: []byte(`{}`)})
+	_ = ring.Set(keyring.Item{Key: credentialKey("username"), Data: []byte(`old`)})
+	_ = ring.Set(keyring.Item{Key: credentialKey("password"), Data: []byte(`old`)})
+
+	err := deleteCredentialsFrom(ring)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := ring.Get(credentialKey("credentials")); err == nil {
+		t.Error("expected credentials to be removed")
+	}
+	if _, err := ring.Get(credentialKey("username")); err == nil {
+		t.Error("expected legacy username to be removed")
+	}
+	if _, err := ring.Get(credentialKey("password")); err == nil {
+		t.Error("expected legacy password to be removed")
+	}
+}
+
+// --- GetCredentials keyring path tests ---
+
+func TestGetCredentials_FallsBackToKeyring(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring()
+	creds := credentials{Username: "keyring-user", Password: "keyring-pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
+
+	username, password, err := getCredentialsWithKeyring(nil, ring)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "keyring-user" {
+		t.Errorf("expected 'keyring-user', got %q", username)
+	}
+	if password != "keyring-pass" {
+		t.Errorf("expected 'keyring-pass', got %q", password)
+	}
+}
+
+func TestGetCredentials_EnvOverridesKeyring(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "env-user")
+	t.Setenv("PARKSTER_PASSWORD", "env-pass")
+
+	ring := newMockKeyring()
+	creds := credentials{Username: "keyring-user", Password: "keyring-pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
+
+	username, password, err := getCredentialsWithKeyring(nil, ring)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "env-user" {
+		t.Errorf("expected 'env-user', got %q", username)
+	}
+	if password != "env-pass" {
+		t.Errorf("expected 'env-pass', got %q", password)
+	}
+}
+
+func TestGetCredentials_PartialEnvFillsFromKeyring(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "env-user")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring()
+	creds := credentials{Username: "keyring-user", Password: "keyring-pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
+
+	username, password, err := getCredentialsWithKeyring(nil, ring)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "env-user" {
+		t.Errorf("expected 'env-user', got %q", username)
+	}
+	if password != "keyring-pass" {
+		t.Errorf("expected 'keyring-pass', got %q", password)
+	}
+}
+
+func TestGetCredentials_CorruptedKeyringJSON(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring()
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: []byte(`not-json`)})
+
+	_, _, err := getCredentialsWithKeyring(nil, ring)
+	if err == nil {
+		t.Fatal("expected error for corrupted JSON")
+	}
+	if !strings.Contains(err.Error(), "corrupted") {
+		t.Errorf("expected 'corrupted' in error, got: %v", err)
+	}
+}
+
+func TestGetCredentials_KeyringNotFound(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring() // empty
+
+	_, _, err := getCredentialsWithKeyring(nil, ring)
+	if err == nil {
+		t.Fatal("expected error when no credentials found")
 	}
 }
