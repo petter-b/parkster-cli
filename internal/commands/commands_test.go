@@ -2279,6 +2279,29 @@ func TestAuthStatus_Plain_TSV(t *testing.T) {
 	}
 }
 
+func TestAuthLogin_InvalidCredentials_Error(t *testing.T) {
+	mock := &mockAPI{
+		loginErr: errors.New("authentication failed (status 401)"),
+	}
+	withMockClient(t, mock)
+
+	// Simulate stdin input for interactive prompts
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	_, _ = w.WriteString("baduser\nbadpass\n")
+	_ = w.Close()
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	_, _, err := executeCommand("auth", "login")
+	if err == nil {
+		t.Fatal("expected error for invalid credentials, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid credentials") {
+		t.Errorf("expected 'invalid credentials' in error, got: %v", err)
+	}
+}
+
 func TestJsonAndPlain_MutuallyExclusive(t *testing.T) {
 	_, _, err := executeCommand("version", "--json", "--plain")
 	if err == nil {

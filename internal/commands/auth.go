@@ -58,8 +58,9 @@ func init() {
 }
 
 func runAuthAdd(cmd *cobra.Command, args []string) error {
-	fmt.Fprintf(os.Stderr, "Enter username (email or phone): ")
 	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Fprintf(os.Stderr, "Enter username (email or phone): ")
 	username, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("failed to read username: %w", err)
@@ -71,13 +72,31 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "Enter password: ")
-	password, err := readSecretLine()
-	if err != nil {
-		return fmt.Errorf("failed to read password: %w", err)
+	var password string
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		pw, err := term.ReadPassword(fd)
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return fmt.Errorf("failed to read password: %w", err)
+		}
+		password = string(pw)
+	} else {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read password: %w", err)
+		}
+		password = strings.TrimSpace(line)
 	}
 
-	if strings.TrimSpace(password) == "" {
+	if password == "" {
 		return fmt.Errorf("password cannot be empty")
+	}
+
+	// Validate credentials against API before storing
+	client := newAPIClient(username, password)
+	if _, err := client.Login(); err != nil {
+		return fmt.Errorf("invalid credentials: %w", err)
 	}
 
 	if err := auth.SaveCredentials(username, password); err != nil {
@@ -121,24 +140,4 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(os.Stderr, "Logged in as: %s\n", username)
 	return nil
-}
-
-// readSecretLine reads a line without echoing the input to the terminal.
-func readSecretLine() (string, error) {
-	fd := int(os.Stdin.Fd())
-	if term.IsTerminal(fd) {
-		password, err := term.ReadPassword(fd)
-		fmt.Fprintln(os.Stderr) // newline after hidden input
-		if err != nil {
-			return "", err
-		}
-		return string(password), nil
-	}
-	// Non-terminal (piped input): read normally
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
 }
