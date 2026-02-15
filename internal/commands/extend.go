@@ -72,6 +72,21 @@ func runChange(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--duration must be a positive number of minutes")
 	}
 
+	// Parse --until early (before auth) to fail fast on invalid input
+	var desiredEnd time.Time
+	if hasDuration {
+		desiredEnd = time.Now().Add(time.Duration(duration) * time.Minute)
+	} else {
+		var parseErr error
+		desiredEnd, parseErr = parseUntil(until)
+		if parseErr != nil {
+			return parseErr
+		}
+		if desiredEnd.Before(time.Now()) {
+			return fmt.Errorf("--until time %s is in the past", until)
+		}
+	}
+
 	username, password, err := auth.GetCredentials()
 	if err != nil {
 		return fmt.Errorf("authentication required: %w", err)
@@ -116,21 +131,6 @@ func runChange(cmd *cobra.Command, args []string) error {
 	}
 
 	selected := parkings[parkingIdx]
-
-	// Compute desired end time
-	var desiredEnd time.Time
-	now := time.Now()
-	if hasDuration {
-		desiredEnd = now.Add(time.Duration(duration) * time.Minute)
-	} else {
-		desiredEnd, err = parseUntil(until)
-		if err != nil {
-			return err
-		}
-		if desiredEnd.Before(now) {
-			return fmt.Errorf("--until time %s is in the past", until)
-		}
-	}
 
 	// Compute offset in minutes: desired_end - current_end
 	currentEnd := time.UnixMilli(selected.TimeoutTime)

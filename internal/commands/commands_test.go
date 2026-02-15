@@ -223,18 +223,7 @@ func TestChange_BothDurationAndUntil_Error(t *testing.T) {
 }
 
 func TestChange_UntilInvalid_Error(t *testing.T) {
-	setAuth(t)
-
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID: 1,
-			ShortTermParkings: []parkster.Parking{
-				{ID: 500, TimeoutTime: time.Now().Add(30 * time.Minute).UnixMilli()},
-			},
-		},
-	}
-	withMockClient(t, mock)
-
+	// Invalid --until now fails before auth (no mock needed)
 	_, _, err := executeCommand("change", "--until", "not-a-time")
 	if err == nil {
 		t.Fatal("expected error for invalid --until format")
@@ -2256,5 +2245,16 @@ func TestChange_NegativeDuration_Error(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "positive") {
 		t.Errorf("expected 'positive' in error, got: %v", err)
+	}
+}
+
+func TestChange_UntilInvalid_NoAuthNeeded(t *testing.T) {
+	// Invalid --until should fail BEFORE auth, so no setAuth or mock needed
+	_, _, err := executeCommand("change", "--until", "99:99")
+	if err == nil {
+		t.Fatal("expected error for invalid --until format")
+	}
+	if !strings.Contains(err.Error(), "invalid time") {
+		t.Errorf("expected 'invalid time' in error, got: %v", err)
 	}
 }
