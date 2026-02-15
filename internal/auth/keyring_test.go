@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -17,7 +16,8 @@ func TestGetCredentials_FromEnvVars(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "envuser")
 	t.Setenv("PARKSTER_PASSWORD", "envpass")
 
-	username, password, _, err := GetCredentials()
+	ring := newMockKeyring()
+	username, password, _, err := getCredentialsWithKeyring(ring)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,11 +54,8 @@ func TestGetCredentials_MissingUsername(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "")
 	t.Setenv("PARKSTER_PASSWORD", "somepass")
 
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: macOS Keychain may block")
-	}
-
-	_, _, _, err := GetCredentials()
+	ring := newMockKeyring()
+	_, _, _, err := getCredentialsWithKeyring(ring)
 	if err == nil {
 		t.Error("expected error when username not available")
 	}
@@ -68,11 +65,8 @@ func TestGetCredentials_MissingPassword(t *testing.T) {
 	t.Setenv("PARKSTER_USERNAME", "user")
 	t.Setenv("PARKSTER_PASSWORD", "")
 
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: macOS Keychain may block")
-	}
-
-	_, _, _, err := GetCredentials()
+	ring := newMockKeyring()
+	_, _, _, err := getCredentialsWithKeyring(ring)
 	if err == nil {
 		t.Error("expected error when password not available")
 	}
