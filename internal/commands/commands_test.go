@@ -2258,3 +2258,13 @@ func TestChange_UntilInvalid_NoAuthNeeded(t *testing.T) {
 		t.Errorf("expected 'invalid time' in error, got: %v", err)
 	}
 }
+
+func TestJsonAndPlain_MutuallyExclusive(t *testing.T) {
+	_, _, err := executeCommand("version", "--json", "--plain")
+	if err == nil {
+		t.Fatal("expected error when both --json and --plain specified")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
+	}
+}

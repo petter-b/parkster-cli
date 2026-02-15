@@ -41,6 +41,13 @@ func init() {
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true
 	}
+
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if jsonFlag && plainFlag {
+			return fmt.Errorf("--json and --plain are mutually exclusive")
+		}
+		return nil
+	}
 }
 
 // Execute runs the root command, formatting errors based on output mode
