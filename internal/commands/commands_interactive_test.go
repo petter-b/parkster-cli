@@ -18,9 +18,17 @@ import (
 
 func TestInteractive_AuthLoginLogoutCycle(t *testing.T) {
 	// Ensure real auth functions are used (not test swaps)
+	origGet := getCredentials
+	origSave := saveCredentials
+	origDelete := deleteCredentials
 	getCredentials = auth.GetCredentials
 	saveCredentials = auth.SaveCredentials
 	deleteCredentials = auth.DeleteCredentials
+	t.Cleanup(func() {
+		getCredentials = origGet
+		saveCredentials = origSave
+		deleteCredentials = origDelete
+	})
 
 	// Save test credentials
 	if err := saveCredentials("interactive-test@example.com", "test-password"); err != nil {
