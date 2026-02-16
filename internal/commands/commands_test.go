@@ -3643,3 +3643,53 @@ func TestAuthStatus_InvalidCredentials_JSON(t *testing.T) {
 		t.Error("expected success=false for invalid credentials")
 	}
 }
+
+func TestChange_Duration_OutputShowsZoneAndCar(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	currentEnd := now.Add(30 * time.Minute)
+	newEnd := now.Add(60 * time.Minute)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+					Car:         parkster.Car{LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+					CheckInTime: now.Add(-10 * time.Minute).UnixMilli(),
+					TimeoutTime: currentEnd.UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+			},
+		},
+		// Extend API returns only timeoutTime, cost, currency (no zone/car)
+		extendResp: &parkster.Parking{
+			TimeoutTime: newEnd.UnixMilli(),
+			Cost:        15.0,
+			TotalCost:   15.0,
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("change", "--duration", "60")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Parking changed") {
+		t.Errorf("expected 'Parking changed' in stderr, got: %q", stderr)
+	}
+	// Zone and car should come from the login response, not the extend response
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone code '80500' in output, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "Volkswagen") {
+		t.Errorf("expected car name 'Volkswagen' in output, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "15.00 SEK") {
+		t.Errorf("expected cost '15.00 SEK' in output, got: %q", stdout)
+	}
+}

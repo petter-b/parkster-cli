@@ -142,11 +142,18 @@ func runChange(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to change parking: %w", err)
 	}
 
+	// Merge updated fields from extend response into the original parking
+	// (extend API only returns timeoutTime, cost, currency — not zone/car)
+	selected.TimeoutTime = parking.TimeoutTime
+	selected.Cost = parking.Cost
+	selected.TotalCost = parking.TotalCost
+	selected.Currency = parking.Currency
+
 	mode := OutputMode()
 	if mode != output.ModeHuman {
-		return output.PrintSuccess(parking, mode)
+		return output.PrintSuccess(selected, mode)
 	}
 	fmt.Fprintln(os.Stderr, "Parking changed")
-	fmt.Println(output.FormatParkingChanged(*parking))
+	fmt.Println(output.FormatParkingChanged(selected))
 	return nil
 }
