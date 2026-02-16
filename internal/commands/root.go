@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/petter-b/parkster-cli/internal/caller"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -15,6 +16,9 @@ var (
 	debug     bool
 	jsonFlag  bool
 	quietFlag bool
+
+	// detectedCaller holds the detected calling process info (set in PersistentPreRunE).
+	detectedCaller caller.Info
 )
 
 // errSilent indicates the error message was already printed.
@@ -47,6 +51,14 @@ func init() {
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true
 	}
+
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		detectedCaller = caller.Detect()
+		if debug && detectedCaller.Name != "" {
+			debugLog("caller=%s pid=%d", detectedCaller.Name, detectedCaller.PID)
+		}
+		return nil
+	}
 }
 
 // Execute runs the root command, formatting errors based on output mode
@@ -74,6 +86,12 @@ func debugLog(fmt_ string, args ...any) {
 // Declared as a variable so tests can override it.
 var isStderrTTY = func() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+// isStdinTTY reports whether stdin is connected to a terminal.
+// Declared as a variable so tests can override it.
+var isStdinTTY = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 // statusMsg prints a status message to stderr in human mode.

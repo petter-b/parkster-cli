@@ -335,3 +335,122 @@ func TestGetCredentials_KeyringNotFound(t *testing.T) {
 		t.Fatal("expected error when no credentials found")
 	}
 }
+
+// --- GetCredentialsWithCaller tests ---
+
+func TestGetCredentialsWithCaller_UpdatesDescription(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring()
+	creds := credentials{Username: "kr-user", Password: "kr-pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
+
+	username, password, source, err := getCredentialsWithCallerKeyring(ring, "claude")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "kr-user" || password != "kr-pass" {
+		t.Errorf("expected kr-user/kr-pass, got %s/%s", username, password)
+	}
+	if source != SourceKeyring {
+		t.Errorf("expected source %q, got %q", SourceKeyring, source)
+	}
+
+	// Verify the item description was updated
+	item, err := ring.Get(credentialKey("credentials"))
+	if err != nil {
+		t.Fatalf("expected item in keyring: %v", err)
+	}
+	expectedDesc := "Parkster CLI credential (via claude)"
+	if item.Description != expectedDesc {
+		t.Errorf("expected description %q, got %q", expectedDesc, item.Description)
+	}
+}
+
+func TestGetCredentialsWithCaller_EmptyCallerName_NoUpdate(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring()
+	creds := credentials{Username: "kr-user", Password: "kr-pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{
+		Key:         credentialKey("credentials"),
+		Data:        data,
+		Description: "original description",
+	})
+
+	_, _, _, err := getCredentialsWithCallerKeyring(ring, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Description should remain unchanged when callerName is empty
+	item, _ := ring.Get(credentialKey("credentials"))
+	if item.Description != "original description" {
+		t.Errorf("expected description to remain 'original description', got %q", item.Description)
+	}
+}
+
+func TestGetCredentialsWithCaller_EnvFallback_NoKeychainUpdate(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "env-user")
+	t.Setenv("PARKSTER_PASSWORD", "env-pass")
+
+	ring := newMockKeyring() // empty keyring
+
+	username, password, source, err := getCredentialsWithCallerKeyring(ring, "claude")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "env-user" || password != "env-pass" {
+		t.Errorf("expected env-user/env-pass, got %s/%s", username, password)
+	}
+	if source != SourceEnvironment {
+		t.Errorf("expected source %q, got %q", SourceEnvironment, source)
+	}
+
+	// No keychain item should exist (env vars used, not keyring)
+	_, err = ring.Get(credentialKey("credentials"))
+	if err == nil {
+		t.Error("expected no credentials in keyring when using env fallback")
+	}
+}
+
+func TestGetCredentialsWithCaller_NoCredentials_ReturnsError(t *testing.T) {
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	ring := newMockKeyring() // empty
+
+	_, _, _, err := getCredentialsWithCallerKeyring(ring, "claude")
+	if err == nil {
+		t.Fatal("expected error when no credentials found")
+	}
+}
+
+func TestUpdateKeychainDescription(t *testing.T) {
+	ring := newMockKeyring()
+	creds := credentials{Username: "user", Password: "pass"}
+	data, _ := json.Marshal(creds)
+	_ = ring.Set(keyring.Item{Key: credentialKey("credentials"), Data: data})
+
+	updateKeychainDescription(ring, "user", "pass", "openclaw-gateway")
+
+	item, _ := ring.Get(credentialKey("credentials"))
+	expectedDesc := "Parkster CLI credential (via openclaw-gateway)"
+	if item.Description != expectedDesc {
+		t.Errorf("expected description %q, got %q", expectedDesc, item.Description)
+	}
+	if item.Label != "Parkster Credentials" {
+		t.Errorf("expected label 'Parkster Credentials', got %q", item.Label)
+	}
+
+	// Verify credentials data is preserved
+	var got credentials
+	_ = json.Unmarshal(item.Data, &got)
+	if got.Username != "user" || got.Password != "pass" {
+		t.Errorf("credentials should be preserved, got %+v", got)
+	}
+}

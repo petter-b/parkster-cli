@@ -11,7 +11,14 @@ var newAPIClient = func(username, password string) parkster.API {
 }
 
 // getCredentials retrieves auth credentials. Replaced in tests to avoid keychain.
-var getCredentials = auth.GetCredentials
+// When a caller is detected and stdin is not a TTY (agent mode), it passes
+// the caller name to update the keychain item description.
+var getCredentials = func() (string, string, auth.CredentialSource, error) {
+	if detectedCaller.Name != "" && !isStdinTTY() {
+		return auth.GetCredentialsWithCaller(detectedCaller.Name)
+	}
+	return auth.GetCredentials()
+}
 
 // saveCredentials stores auth credentials. Replaced in tests to avoid keychain.
 var saveCredentials = auth.SaveCredentials

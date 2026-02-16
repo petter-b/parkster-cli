@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
+	"github.com/petter-b/parkster-cli/internal/caller"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
 	"github.com/spf13/cobra"
@@ -24,7 +25,9 @@ func resetFlags() {
 	debug = false
 	jsonFlag = false
 	quietFlag = false
+	detectedCaller = caller.Info{} // reset caller detection
 	isStderrTTY = func() bool { return true } // pipes aren't TTYs; override for test capture
+	isStdinTTY = func() bool { return true }  // default to TTY for tests
 	resetCommandFlags(rootCmd)
 }
 
@@ -3460,5 +3463,61 @@ func TestHelp_ShowsQuietFlag(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "--quiet") && !strings.Contains(stdout, "-q") {
 		t.Error("Help should show --quiet / -q flag")
+	}
+}
+
+// --- Caller detection tests ---
+
+func TestDebug_IncludesCallerInfo(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, _ := executeCommand("status", "-d")
+	// When run from go test, caller detection should find something
+	if !strings.Contains(stderr, "DEBUG: caller=") {
+		t.Errorf("expected debug output to include caller info, got stderr: %q", stderr)
+	}
+	if !strings.Contains(stderr, "pid=") {
+		t.Errorf("expected debug output to include pid, got stderr: %q", stderr)
+	}
+}
+
+func TestGetCredentials_FunctionVariable_Works(t *testing.T) {
+	// Test that the getCredentials function variable can be called
+	orig := getCredentials
+	called := false
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		called = true
+		return "u", "p", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
+
+	u, p, src, err := getCredentials()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Error("expected getCredentials function variable to be called")
+	}
+	if u != "u" || p != "p" || src != auth.SourceEnvironment {
+		t.Errorf("unexpected return values: %s, %s, %s", u, p, src)
+	}
+}
+
+func TestIsStdinTTY_Overridable(t *testing.T) {
+	orig := isStdinTTY
+	t.Cleanup(func() { isStdinTTY = orig })
+
+	isStdinTTY = func() bool { return false }
+	if isStdinTTY() {
+		t.Error("expected isStdinTTY override to return false")
+	}
+
+	isStdinTTY = func() bool { return true }
+	if !isStdinTTY() {
+		t.Error("expected isStdinTTY override to return true")
 	}
 }

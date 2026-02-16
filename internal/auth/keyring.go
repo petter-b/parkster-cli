@@ -103,6 +103,65 @@ func GetCredentials() (username, password string, source CredentialSource, err e
 	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
 }
 
+// GetCredentialsWithCaller retrieves credentials and updates the keychain
+// item description with the caller name (for agent identification).
+func GetCredentialsWithCaller(callerName string) (username, password string, source CredentialSource, err error) {
+	// 1. Try keyring first
+	ring, kerr := OpenKeyring()
+	if kerr == nil {
+		username, password, err = getCredentialsFromKeyring(ring)
+		if err == nil {
+			// Update description with caller info if provided
+			if callerName != "" {
+				updateKeychainDescription(ring, username, password, callerName)
+			}
+			return username, password, SourceKeyring, nil
+		}
+	}
+
+	// 2. Fall back to env vars
+	username = os.Getenv("PARKSTER_USERNAME")
+	password = os.Getenv("PARKSTER_PASSWORD")
+	if username != "" && password != "" {
+		return username, password, SourceEnvironment, nil
+	}
+
+	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+}
+
+// getCredentialsWithCallerKeyring is like GetCredentialsWithCaller but accepts a KeyringStore for testing.
+func getCredentialsWithCallerKeyring(ring KeyringStore, callerName string) (username, password string, source CredentialSource, err error) {
+	// 1. Try keyring first
+	username, password, err = getCredentialsFromKeyring(ring)
+	if err == nil {
+		if callerName != "" {
+			updateKeychainDescription(ring, username, password, callerName)
+		}
+		return username, password, SourceKeyring, nil
+	}
+
+	// 2. Fall back to env vars
+	username = os.Getenv("PARKSTER_USERNAME")
+	password = os.Getenv("PARKSTER_PASSWORD")
+	if username != "" && password != "" {
+		return username, password, SourceEnvironment, nil
+	}
+
+	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+}
+
+func updateKeychainDescription(ring KeyringStore, username, password, callerName string) {
+	creds := credentials{Username: username, Password: password}
+	data, _ := json.Marshal(creds)
+	description := fmt.Sprintf("Parkster CLI credential (via %s)", callerName)
+	_ = ring.Set(keyring.Item{
+		Key:         credentialKey("credentials"),
+		Data:        data,
+		Label:       "Parkster Credentials",
+		Description: description,
+	})
+}
+
 // getCredentialsWithKeyring is like GetCredentials but accepts a KeyringStore for testing.
 func getCredentialsWithKeyring(ring KeyringStore) (username, password string, source CredentialSource, err error) {
 	// 1. Try keyring first
