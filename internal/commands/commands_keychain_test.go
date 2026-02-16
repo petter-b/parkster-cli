@@ -1,5 +1,3 @@
-//go:build interactive
-
 package commands
 
 import (
@@ -11,8 +9,6 @@ import (
 
 // TestKeychain_AuthLoginLogoutCycle exercises the real OS keychain
 // through the full auth login → status → logout → status cycle.
-// Only runs with: go test -tags interactive ./internal/commands/
-// Requires a signed binary or keychain access granted to the test binary.
 func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 	// Ensure real auth functions are used (not test swaps)
 	origGet := getCredentials
