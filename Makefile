@@ -1,4 +1,4 @@
-.PHONY: build test test-integration lint fmt clean install help setup-hooks
+.PHONY: build test test-integration test-interactive lint fmt clean install help setup-hooks
 
 # Variables
 BINARY_NAME := parkster
@@ -64,6 +64,11 @@ test-cover:
 	$(GOTEST) -v -coverprofile=coverage.out ./...
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+## test-interactive: Run interactive tests (requires OS keychain access)
+test-interactive:
+	@echo "Running interactive tests..."
+	$(GOTEST) -v -tags interactive ./...
 
 ## lint: Run linter (requires golangci-lint)
 lint:
