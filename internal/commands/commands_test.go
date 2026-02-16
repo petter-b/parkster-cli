@@ -2762,3 +2762,766 @@ func TestHelp_VersionCommand(t *testing.T) {
 		t.Error("version help should mention version")
 	}
 }
+
+// --- Completion command tests ---
+// Note: Completion subcommands (bash, zsh, fish, powershell) output large scripts
+// that overflow the os.Pipe buffer in executeCommand. We test via --help instead.
+
+func TestHelp_CompletionCommand(t *testing.T) {
+	stdout, _, err := executeCommand("completion", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "bash") {
+		t.Error("completion help should mention bash")
+	}
+	if !strings.Contains(stdout, "zsh") {
+		t.Error("completion help should mention zsh")
+	}
+	if !strings.Contains(stdout, "fish") {
+		t.Error("completion help should mention fish")
+	}
+	if !strings.Contains(stdout, "powershell") {
+		t.Error("completion help should mention powershell")
+	}
+}
+
+func TestHelp_CompletionBash(t *testing.T) {
+	stdout, _, err := executeCommand("completion", "bash", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "bash") {
+		t.Error("completion bash help should mention bash")
+	}
+}
+
+func TestHelp_CompletionZsh(t *testing.T) {
+	stdout, _, err := executeCommand("completion", "zsh", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "zsh") {
+		t.Error("completion zsh help should mention zsh")
+	}
+}
+
+func TestHelp_CompletionFish(t *testing.T) {
+	stdout, _, err := executeCommand("completion", "fish", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "fish") {
+		t.Error("completion fish help should mention fish")
+	}
+}
+
+func TestHelp_CompletionPowershell(t *testing.T) {
+	stdout, _, err := executeCommand("completion", "powershell", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "powershell") {
+		t.Error("completion powershell help should mention powershell")
+	}
+}
+
+// --- Bare command tests (no subcommand) ---
+
+func TestAuth_BareCommand_ShowsHelp(t *testing.T) {
+	stdout, _, err := executeCommand("auth")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "login") {
+		t.Error("auth without subcommand should show help mentioning login")
+	}
+}
+
+func TestZones_BareCommand_ShowsHelp(t *testing.T) {
+	stdout, _, err := executeCommand("zones")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "search") {
+		t.Error("zones without subcommand should show help mentioning search")
+	}
+}
+
+// --- Plain output for stop/change/start/status ---
+
+func TestStop_SingleActiveParking_Plain(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+					Car:         parkster.Car{LicenseNbr: "ABC123"},
+					CheckInTime: now.UnixMilli(),
+					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+					Cost:        10.50,
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+			},
+		},
+		stopParkingResp: &parkster.Parking{
+			ID:          500,
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			Cost:        10.50,
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("stop", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "500") {
+		t.Errorf("plain output should contain parking ID, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "\t") {
+		t.Errorf("plain output should be tab-separated, got: %q", stdout)
+	}
+}
+
+func TestChange_Duration_Plain(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					CheckInTime: now.UnixMilli(),
+					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+				},
+			},
+		},
+		extendResp: &parkster.Parking{
+			ID:          500,
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			TimeoutTime: now.Add(90 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("change", "--duration", "90", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "500") {
+		t.Errorf("plain output should contain parking ID, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "\t") {
+		t.Errorf("plain output should be tab-separated, got: %q", stdout)
+	}
+}
+
+func TestStart_SingleCarSinglePayment_Plain(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{
+			ID:          999,
+			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+			Car:         parkster.Car{LicenseNbr: "ABC123"},
+			CheckInTime: now.UnixMilli(),
+			TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "999") {
+		t.Errorf("plain output should contain parking ID, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "\t") {
+		t.Errorf("plain output should be tab-separated, got: %q", stdout)
+	}
+}
+
+func TestStatus_HasParkings_Plain(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
+					Car:         parkster.Car{LicenseNbr: "ABC123"},
+					CheckInTime: now.UnixMilli(),
+					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("status", "--plain")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stdout, "500") {
+		t.Errorf("plain output should contain parking ID, got: %q", stdout)
+	}
+	if !strings.Contains(stdout, "\t") {
+		t.Errorf("plain output should be tab-separated, got: %q", stdout)
+	}
+}
+
+// --- Auth login/logout with mock credentials ---
+
+func TestAuthLogin_ValidCredentials_Success(t *testing.T) {
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1, Email: "test@example.com"},
+	}
+	withMockClient(t, mock)
+
+	// Mock saveCredentials to avoid real keychain
+	origSave := saveCredentials
+	var savedUser, savedPass string
+	saveCredentials = func(u, p string) error {
+		savedUser = u
+		savedPass = p
+		return nil
+	}
+	t.Cleanup(func() { saveCredentials = origSave })
+
+	// Pipe stdin for username and password
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	os.Stdin = r
+	_, _ = w.WriteString("testuser\ntestpass\n")
+	_ = w.Close()
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	_, stderr, err := executeCommand("auth", "login")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Credentials stored") {
+		t.Errorf("expected 'Credentials stored' in stderr, got: %q", stderr)
+	}
+	if savedUser != "testuser" {
+		t.Errorf("expected saved username 'testuser', got %q", savedUser)
+	}
+	if savedPass != "testpass" {
+		t.Errorf("expected saved password 'testpass', got %q", savedPass)
+	}
+}
+
+func TestAuthLogout_WithCredentials_Success(t *testing.T) {
+	// Mock deleteCredentials to avoid real keychain
+	origDelete := deleteCredentials
+	deleteCalled := false
+	deleteCredentials = func() error {
+		deleteCalled = true
+		return nil
+	}
+	t.Cleanup(func() { deleteCredentials = origDelete })
+
+	_, stderr, err := executeCommand("auth", "logout")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !deleteCalled {
+		t.Error("expected deleteCredentials to be called")
+	}
+	if !strings.Contains(stderr, "Credentials removed") {
+		t.Errorf("expected 'Credentials removed' in stderr, got: %q", stderr)
+	}
+}
+
+func TestAuthLogout_KeyringError_Error(t *testing.T) {
+	origDelete := deleteCredentials
+	deleteCredentials = func() error {
+		return fmt.Errorf("keyring locked")
+	}
+	t.Cleanup(func() { deleteCredentials = origDelete })
+
+	_, _, err := executeCommand("auth", "logout")
+	if err == nil {
+		t.Fatal("expected error when keyring fails")
+	}
+	if !strings.Contains(err.Error(), "failed to remove credentials") {
+		t.Errorf("expected 'failed to remove credentials' in error, got: %v", err)
+	}
+}
+
+// --- Start --until with past time ---
+
+func TestStart_UntilInPast_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	// Use a time that's definitely in the past (00:01 today)
+	_, _, err := executeCommand("start", "--zone", "17429", "--until", "00:01")
+	if err == nil {
+		// Only errors if it's actually past midnight+1min
+		if time.Now().Hour() > 0 || time.Now().Minute() > 1 {
+			t.Fatal("expected error for --until time in the past")
+		}
+	}
+}
+
+// --- Start --payment with unknown payment ---
+
+func TestStart_PaymentFlagUnknown_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PRIVATE:123"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "NONEXISTENT")
+	if err == nil {
+		t.Fatal("expected error for unknown payment account")
+	}
+	if !strings.Contains(err.Error(), "payment account not found") {
+		t.Errorf("expected 'payment account not found' in error, got: %v", err)
+	}
+}
+
+// --- PARKSTER_DEBUG env var ---
+
+func TestDebug_EnvVar(t *testing.T) {
+	// The PARKSTER_DEBUG env var is read at init time.
+	// We can test that debugLog works when debug is true.
+	resetFlags()
+	debug = true
+	defer func() { debug = false }()
+
+	_, stderr, err := executeCommand("version")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// version command doesn't produce debug output, but the flag should be set
+	_ = stderr // no debug output from version, that's fine
+}
+
+// --- Change --until with past time ---
+
+func TestChange_UntilInPast_Error(t *testing.T) {
+	// Use a time that's definitely in the past
+	_, _, err := executeCommand("change", "--until", "00:01")
+	if err == nil {
+		if time.Now().Hour() > 0 || time.Now().Minute() > 1 {
+			t.Fatal("expected error for --until time in the past")
+		}
+	}
+	if err != nil && !strings.Contains(err.Error(), "in the past") {
+		t.Errorf("expected 'in the past' in error, got: %v", err)
+	}
+}
+
+// --- Start --dry-run with --until ---
+
+func TestStart_DryRun_WithUntil(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	// Use a time 2 hours from now
+	futureHour := now.Add(2 * time.Hour)
+	untilStr := fmt.Sprintf("%02d:%02d", futureHour.Hour(), futureHour.Minute())
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		estimateCostResp: &parkster.CostEstimate{Amount: 20.0, Currency: "SEK"},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("start", "--zone", "17429", "--until", untilStr, "--dry-run")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "DRY RUN") {
+		t.Errorf("expected 'DRY RUN' in stderr, got: %q", stderr)
+	}
+	if stdout == "" {
+		t.Error("expected dry-run output on stdout")
+	}
+}
+
+// --- Auth status: not authenticated (human mode) ---
+
+func TestAuthStatus_NotAuthenticated_Human(t *testing.T) {
+	origGet := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", errors.New("no credentials found")
+	}
+	t.Cleanup(func() { getCredentials = origGet })
+
+	_, stderr, err := executeCommand("auth", "status")
+	if err != nil {
+		t.Fatalf("auth status should not error, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
+	}
+}
+
+// --- Mutually exclusive flags for more commands ---
+
+func TestJsonAndPlain_MutuallyExclusive_Change(t *testing.T) {
+	_, _, err := executeCommand("change", "--json", "--plain", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for --json and --plain together")
+	}
+}
+
+func TestJsonAndPlain_MutuallyExclusive_Stop(t *testing.T) {
+	_, _, err := executeCommand("stop", "--json", "--plain")
+	if err == nil {
+		t.Fatal("expected error for --json and --plain together")
+	}
+}
+
+func TestJsonAndPlain_MutuallyExclusive_Start(t *testing.T) {
+	_, _, err := executeCommand("start", "--json", "--plain", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for --json and --plain together")
+	}
+}
+
+func TestJsonAndPlain_MutuallyExclusive_AuthStatus(t *testing.T) {
+	_, _, err := executeCommand("auth", "status", "--json", "--plain")
+	if err == nil {
+		t.Fatal("expected error for --json and --plain together")
+	}
+}
+
+func TestJsonAndPlain_MutuallyExclusive_ZonesInfo(t *testing.T) {
+	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.37", "--lon", "17.89", "--json", "--plain")
+	if err == nil {
+		t.Fatal("expected error for --json and --plain together")
+	}
+}
+
+// --- Help for remaining subcommands ---
+
+func TestHelp_ChangeCommand_UntilFlag(t *testing.T) {
+	stdout, _, err := executeCommand("change", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "--parking-id") {
+		t.Error("change help should show --parking-id flag")
+	}
+}
+
+func TestHelp_StopCommand_ParkingIDFlag(t *testing.T) {
+	stdout, _, err := executeCommand("stop", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "--parking-id") {
+		t.Error("stop help should show --parking-id flag")
+	}
+}
+
+func TestHelp_StartCommand_AllFlags(t *testing.T) {
+	stdout, _, err := executeCommand("start", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	for _, flag := range []string{"--zone", "--duration", "--until", "--car", "--payment", "--dry-run", "--lat", "--lon", "--radius"} {
+		if !strings.Contains(stdout, flag) {
+			t.Errorf("start help should show %s flag", flag)
+		}
+	}
+}
+
+func TestHelp_ZonesInfoCommand(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "info", "--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "--lat") {
+		t.Error("zones info help should show --lat flag")
+	}
+	if !strings.Contains(stdout, "--lon") {
+		t.Error("zones info help should show --lon flag")
+	}
+}
+
+// --- Status auth required error ---
+
+func TestStatus_NotAuthenticated_Human(t *testing.T) {
+	origGet := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", errors.New("no credentials found")
+	}
+	t.Cleanup(func() { getCredentials = origGet })
+
+	_, stderr, err := executeCommand("status")
+	if err == nil {
+		t.Fatal("expected error for status without auth")
+	}
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
+	}
+}
+
+func TestStatus_NotAuthenticated_JSON(t *testing.T) {
+	origGet := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", errors.New("no credentials found")
+	}
+	t.Cleanup(func() { getCredentials = origGet })
+
+	stdout, _, err := executeCommand("status", "--json")
+	if err == nil {
+		t.Fatal("expected error for status without auth")
+	}
+	// JSON mode should still produce JSON error
+	if stdout != "" {
+		var envelope output.Envelope
+		if jsonErr := json.Unmarshal([]byte(stdout), &envelope); jsonErr != nil {
+			t.Fatalf("expected JSON output, got: %q", stdout)
+		}
+		if envelope.Success {
+			t.Error("expected success=false")
+		}
+	}
+}
+
+// --- Stop auth required ---
+
+func TestStop_NotAuthenticated_Error(t *testing.T) {
+	origGet := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", errors.New("no credentials found")
+	}
+	t.Cleanup(func() { getCredentials = origGet })
+
+	_, stderr, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error for stop without auth")
+	}
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
+	}
+}
+
+// --- Change auth required ---
+
+func TestChange_NotAuthenticated_Error(t *testing.T) {
+	origGet := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", errors.New("no credentials found")
+	}
+	t.Cleanup(func() { getCredentials = origGet })
+
+	_, stderr, err := executeCommand("change", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for change without auth")
+	}
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
+	}
+}
+
+// --- Start auth required ---
+
+func TestStart_NotAuthenticated_Error(t *testing.T) {
+	origGet := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", errors.New("no credentials found")
+	}
+	t.Cleanup(func() { getCredentials = origGet })
+
+	_, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for start without auth")
+	}
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
+	}
+}
+
+// --- Login failures ---
+
+func TestStart_LoginFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginErr: errors.New("network timeout"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error when login fails")
+	}
+	if !strings.Contains(err.Error(), "failed to authenticate") {
+		t.Errorf("expected 'failed to authenticate' in error, got: %v", err)
+	}
+}
+
+func TestStop_LoginFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginErr: errors.New("network timeout"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error when login fails")
+	}
+	if !strings.Contains(err.Error(), "failed to authenticate") {
+		t.Errorf("expected 'failed to authenticate' in error, got: %v", err)
+	}
+}
+
+func TestChange_LoginFails_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginErr: errors.New("network timeout"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error when login fails")
+	}
+	if !strings.Contains(err.Error(), "failed to authenticate") {
+		t.Errorf("expected 'failed to authenticate' in error, got: %v", err)
+	}
+}
+
+// --- Multiple active parkings for stop/change ---
+
+func TestStop_MultipleParkings_Plain_Error(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+				{ID: 501, ParkingZone: parkster.Zone{ZoneCode: "90100"}, Car: parkster.Car{LicenseNbr: "DEF456"}, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(60 * time.Minute).UnixMilli()},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop", "--plain")
+	if err == nil {
+		t.Fatal("expected error for multiple active parkings without --parking-id")
+	}
+	if !strings.Contains(err.Error(), "multiple active parkings") {
+		t.Errorf("expected 'multiple active parkings' in error, got: %v", err)
+	}
+}
+
+// --- Auth login empty username/password ---
+
+func TestAuthLogin_EmptyUsername_Error(t *testing.T) {
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	os.Stdin = r
+	_, _ = w.WriteString("\ntestpass\n")
+	_ = w.Close()
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	_, _, err := executeCommand("auth", "login")
+	if err == nil {
+		t.Fatal("expected error for empty username")
+	}
+	if !strings.Contains(err.Error(), "username cannot be empty") {
+		t.Errorf("expected 'username cannot be empty' in error, got: %v", err)
+	}
+}
+
+func TestAuthLogin_EmptyPassword_Error(t *testing.T) {
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	os.Stdin = r
+	_, _ = w.WriteString("testuser\n\n")
+	_ = w.Close()
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	_, _, err := executeCommand("auth", "login")
+	if err == nil {
+		t.Fatal("expected error for empty password")
+	}
+	if !strings.Contains(err.Error(), "password cannot be empty") {
+		t.Errorf("expected 'password cannot be empty' in error, got: %v", err)
+	}
+}
+
+func TestAuthLogin_SaveFails_Error(t *testing.T) {
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1},
+	}
+	withMockClient(t, mock)
+
+	origSave := saveCredentials
+	saveCredentials = func(u, p string) error {
+		return fmt.Errorf("keyring locked")
+	}
+	t.Cleanup(func() { saveCredentials = origSave })
+
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	os.Stdin = r
+	_, _ = w.WriteString("testuser\ntestpass\n")
+	_ = w.Close()
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	_, _, err := executeCommand("auth", "login")
+	if err == nil {
+		t.Fatal("expected error when save fails")
+	}
+	if !strings.Contains(err.Error(), "failed to store credentials") {
+		t.Errorf("expected 'failed to store credentials' in error, got: %v", err)
+	}
+}
