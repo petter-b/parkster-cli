@@ -1,4 +1,4 @@
-.PHONY: build test test-integration lint fmt clean install help setup-hooks
+.PHONY: build test test-interactive test-integration lint fmt clean install help setup-hooks
 
 # Variables
 BINARY_NAME := parkster
@@ -46,6 +46,11 @@ install:
 test:
 	@echo "Running tests..."
 	$(GOTEST) -v ./...
+
+## test-interactive: Run interactive tests (requires keychain access)
+test-interactive:
+	@echo "Running interactive tests (may prompt for keychain access)..."
+	$(GOTEST) -v -tags interactive ./internal/commands/
 
 ## test-integration: Run integration tests against live API (requires .env)
 test-integration:
