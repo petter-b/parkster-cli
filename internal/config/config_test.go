@@ -32,7 +32,7 @@ func TestDefaultPath_XDGOverride(t *testing.T) {
 
 func TestDefault_ReturnsValidConfig(t *testing.T) {
 	cfg := Default()
-	if cfg.OutputFormat != "plain" {
+	if cfg.OutputFormat != "human" {
 		t.Errorf("Expected default OutputFormat 'plain', got %s", cfg.OutputFormat)
 	}
 	if cfg.Debug != false {
@@ -48,7 +48,7 @@ func TestLoad_NonExistentFile_ReturnsDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error for missing file, got: %v", err)
 	}
-	if cfg.OutputFormat != "plain" {
+	if cfg.OutputFormat != "human" {
 		t.Errorf("Expected default OutputFormat, got %s", cfg.OutputFormat)
 	}
 }
@@ -188,7 +188,7 @@ func TestSave_CreatesDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if loaded.OutputFormat != "plain" {
+	if loaded.OutputFormat != "human" {
 		t.Errorf("Expected OutputFormat 'plain', got %q", loaded.OutputFormat)
 	}
 }

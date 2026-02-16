@@ -11,7 +11,7 @@ import (
 // Config represents the application configuration
 type Config struct {
 	// Output settings
-	OutputFormat string `yaml:"output_format"` // plain, json, tsv
+	OutputFormat string `yaml:"output_format"` // human, json
 
 	// Default timeout for operations
 	Timeout Duration `yaml:"timeout"`
@@ -59,7 +59,7 @@ func (d Duration) Duration() time.Duration {
 // Default returns default configuration
 func Default() *Config {
 	return &Config{
-		OutputFormat: "plain",
+		OutputFormat: "human",
 		Timeout:      Duration(30 * time.Second),
 		Debug:        false,
 		Services:     make(map[string]ServiceConfig),
