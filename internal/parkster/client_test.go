@@ -884,3 +884,75 @@ func TestEstimateCost_Error(t *testing.T) {
 		t.Errorf("Expected 'failed to estimate cost' in error, got: %s", err.Error())
 	}
 }
+
+// --- API error body parsing tests ---
+
+func TestStartParking_ErrorWithDisplayMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"errorCode":26,"data":{"displayMessage":"You already have an active parking on this parking lot with ABC123."}}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.StartParking(17429, 27545, 67890, "pay_123", 30)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "You already have an active parking") {
+		t.Errorf("Expected displayMessage in error, got: %s", err.Error())
+	}
+}
+
+func TestStopParking_ErrorWithDisplayMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"errorCode":99,"data":{"displayMessage":"Cannot stop this parking."}}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.StopParking(123456)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "Cannot stop this parking") {
+		t.Errorf("Expected displayMessage in error, got: %s", err.Error())
+	}
+}
+
+func TestExtendParking_ErrorWithDisplayMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"errorCode":10,"data":{"displayMessage":"Maximum parking time exceeded."}}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.ExtendParking(123456, 30)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "Maximum parking time exceeded") {
+		t.Errorf("Expected displayMessage in error, got: %s", err.Error())
+	}
+}
+
+func TestStartParking_ErrorWithoutDisplayMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.StartParking(17429, 27545, 67890, "pay_123", 30)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "status 400") {
+		t.Errorf("Expected 'status 400' fallback in error, got: %s", err.Error())
+	}
+}

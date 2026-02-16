@@ -127,6 +127,16 @@ func (c *Client) put(path string, data url.Values) (*http.Response, error) {
 	return c.http.Do(req)
 }
 
+// parseErrorResponse reads a non-200 response body and extracts displayMessage if present.
+// Falls back to a generic "description (status N)" message.
+func parseErrorResponse(resp *http.Response, description string) error {
+	var apiErr APIError
+	if err := json.NewDecoder(resp.Body).Decode(&apiErr); err == nil && apiErr.Data.DisplayMessage != "" {
+		return fmt.Errorf("%s", apiErr.Data.DisplayMessage)
+	}
+	return fmt.Errorf("%s (status %d)", description, resp.StatusCode)
+}
+
 // Login authenticates and returns user profile
 func (c *Client) Login() (*User, error) {
 	resp, err := c.get("/people/login", nil)
@@ -156,7 +166,7 @@ func (c *Client) GetActiveParkings() ([]Parking, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("request failed (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "request failed")
 	}
 
 	var parkings []Parking
@@ -177,7 +187,7 @@ func (c *Client) GetZone(zoneID int) (*Zone, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("zone not found (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "zone not found")
 	}
 
 	var zone Zone
@@ -204,7 +214,7 @@ func (c *Client) SearchZones(lat, lon float64, radius int) (*SearchResult, error
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("search failed (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "search failed")
 	}
 
 	var result SearchResult
@@ -255,7 +265,7 @@ func (c *Client) StartParking(zoneID, feeZoneID, carID int, paymentID string, ti
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to start parking (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "failed to start parking")
 	}
 
 	var parking Parking
@@ -276,7 +286,7 @@ func (c *Client) StopParking(parkingID int) (*Parking, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to stop parking (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "failed to stop parking")
 	}
 
 	var parking Parking
@@ -301,7 +311,7 @@ func (c *Client) ExtendParking(parkingID, minutes int) (*Parking, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to extend parking (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "failed to extend parking")
 	}
 
 	var parking Parking
@@ -328,7 +338,7 @@ func (c *Client) EstimateCost(zoneID, feeZoneID, carID int, paymentID string, ti
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to estimate cost (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "failed to estimate cost")
 	}
 
 	var estimate CostEstimate

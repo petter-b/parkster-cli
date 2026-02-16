@@ -99,3 +99,12 @@ type CostEstimate struct {
 	Amount   float64 `json:"amount"`
 	Currency string  `json:"currency"`
 }
+
+// APIError represents a structured error response from the Parkster API.
+// Example: {"errorCode":26,"data":{"displayMessage":"You already have an active parking..."}}
+type APIError struct {
+	ErrorCode int `json:"errorCode"`
+	Data      struct {
+		DisplayMessage string `json:"displayMessage"`
+	} `json:"data"`
+}
