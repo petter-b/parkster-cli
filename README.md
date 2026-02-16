@@ -95,7 +95,6 @@ Credentials are resolved in this order:
 ```bash
 parkster status                  # human-readable (default)
 parkster status --json           # JSON with envelope
-parkster status --plain          # tab-separated values
 ```
 
 ## Uninstall

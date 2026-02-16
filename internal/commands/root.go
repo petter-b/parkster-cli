@@ -11,9 +11,8 @@ import (
 
 var (
 	// Global flags
-	debug     bool
-	jsonFlag  bool
-	plainFlag bool
+	debug    bool
+	jsonFlag bool
 )
 
 // errSilent indicates the error message was already printed.
@@ -40,18 +39,10 @@ Features:
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug output to stderr")
 	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output as JSON with envelope")
-	rootCmd.PersistentFlags().BoolVar(&plainFlag, "plain", false, "Output as tab-separated values")
 
 	// Environment variable bindings
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true
-	}
-
-	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if jsonFlag && plainFlag {
-			return fmt.Errorf("--json and --plain are mutually exclusive")
-		}
-		return nil
 	}
 }
 
@@ -66,7 +57,7 @@ func Execute() error {
 
 // OutputMode returns the current output mode based on flags
 func OutputMode() output.Mode {
-	return output.ModeFromFlags(jsonFlag, plainFlag)
+	return output.ModeFromFlags(jsonFlag)
 }
 
 // debugLog prints to stderr if debug mode is enabled

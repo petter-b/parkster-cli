@@ -28,30 +28,16 @@ func captureStdout(t *testing.T, fn func()) string {
 // --- Mode tests ---
 
 func TestModeFromFlags_DefaultHuman(t *testing.T) {
-	mode := ModeFromFlags(false, false)
+	mode := ModeFromFlags(false)
 	if mode != ModeHuman {
 		t.Errorf("Expected ModeHuman, got %v", mode)
 	}
 }
 
 func TestModeFromFlags_JSON(t *testing.T) {
-	mode := ModeFromFlags(true, false)
+	mode := ModeFromFlags(true)
 	if mode != ModeJSON {
 		t.Errorf("Expected ModeJSON, got %v", mode)
-	}
-}
-
-func TestModeFromFlags_Plain(t *testing.T) {
-	mode := ModeFromFlags(false, true)
-	if mode != ModePlain {
-		t.Errorf("Expected ModePlain, got %v", mode)
-	}
-}
-
-func TestModeFromFlags_JSONTakesPrecedence(t *testing.T) {
-	mode := ModeFromFlags(true, true)
-	if mode != ModeJSON {
-		t.Errorf("Expected ModeJSON when both set, got %v", mode)
 	}
 }
 
@@ -157,19 +143,6 @@ func TestPrintSuccess_Human_Struct(t *testing.T) {
 	}
 }
 
-func TestPrintSuccess_Plain_Struct(t *testing.T) {
-	item := testItem{ID: 42, Name: "hello"}
-
-	out := captureStdout(t, func() {
-		_ = PrintSuccess(item, ModePlain)
-	})
-
-	// Plain/TSV mode should produce tab-separated values
-	if out == "" {
-		t.Error("Expected non-empty output")
-	}
-}
-
 // captureStderr runs fn and returns what it wrote to stderr
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
@@ -230,33 +203,6 @@ func TestPrintSuccess_Human_Slice(t *testing.T) {
 	}
 }
 
-func TestPrintSuccess_Plain_Slice(t *testing.T) {
-	items := []testItem{
-		{ID: 10, Name: "first"},
-		{ID: 20, Name: "second"},
-	}
-
-	out := captureStdout(t, func() {
-		_ = PrintSuccess(items, ModePlain)
-	})
-
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("Expected 2 TSV rows, got %d: %q", len(lines), out)
-	}
-
-	// Each line should be tab-separated
-	if !strings.Contains(lines[0], "\t") {
-		t.Errorf("Expected tab-separated values in first row, got %q", lines[0])
-	}
-	if !strings.Contains(lines[0], "10") || !strings.Contains(lines[0], "first") {
-		t.Errorf("First row should contain '10' and 'first', got %q", lines[0])
-	}
-	if !strings.Contains(lines[1], "20") || !strings.Contains(lines[1], "second") {
-		t.Errorf("Second row should contain '20' and 'second', got %q", lines[1])
-	}
-}
-
 func TestPrintSuccess_Human_EmptyFields(t *testing.T) {
 	// Name is zero value (empty string), should be omitted
 	item := testItem{ID: 7, Name: ""}
@@ -285,17 +231,6 @@ func TestPrintSuccess_Human_Pointer(t *testing.T) {
 	}
 	if !strings.Contains(out, "pointer-test") {
 		t.Errorf("Expected output to contain 'pointer-test', got %q", out)
-	}
-}
-
-func TestPrintSuccess_Plain_NonStruct(t *testing.T) {
-	out := captureStdout(t, func() {
-		_ = PrintSuccess("just a string", ModePlain)
-	})
-
-	trimmed := strings.TrimSpace(out)
-	if trimmed != "just a string" {
-		t.Errorf("Expected 'just a string', got %q", trimmed)
 	}
 }
 

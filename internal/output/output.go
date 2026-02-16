@@ -14,7 +14,6 @@ type Mode int
 const (
 	ModeHuman Mode = iota // default: human-readable
 	ModeJSON              // --json: JSON with envelope
-	ModePlain             // --plain: TSV
 )
 
 // Envelope is the JSON output wrapper
@@ -25,12 +24,9 @@ type Envelope struct {
 }
 
 // ModeFromFlags returns the output mode based on CLI flags
-func ModeFromFlags(jsonFlag, plainFlag bool) Mode {
+func ModeFromFlags(jsonFlag bool) Mode {
 	if jsonFlag {
 		return ModeJSON
-	}
-	if plainFlag {
-		return ModePlain
 	}
 	return ModeHuman
 }
@@ -40,8 +36,6 @@ func PrintSuccess(data any, mode Mode) error {
 	switch mode {
 	case ModeJSON:
 		return printJSONEnvelope(true, data, nil)
-	case ModePlain:
-		return printTSV(data)
 	default:
 		return printHuman(data)
 	}
@@ -126,85 +120,6 @@ func printHumanItem(data any) error {
 		fmt.Printf("%s: %v\n", name, field.Interface())
 	}
 	return nil
-}
-
-// --- TSV output ---
-
-func printTSV(data any) error {
-	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	if v.Kind() == reflect.Slice {
-		for i := 0; i < v.Len(); i++ {
-			if err := printTSVRow(v.Index(i).Interface()); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	return printTSVRow(data)
-}
-
-func printTSVRow(data any) error {
-	v := reflect.ValueOf(data)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		fmt.Println(data)
-		return nil
-	}
-
-	var fields []string
-	collectTSVFields(v, &fields)
-
-	fmt.Println(strings.Join(fields, "\t"))
-	return nil
-}
-
-// collectTSVFields recursively flattens struct fields into TSV columns.
-// Nested structs are expanded inline. Slices of structs are encoded as compact JSON.
-func collectTSVFields(v reflect.Value, fields *[]string) {
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		if !field.CanInterface() {
-			continue
-		}
-
-		fv := field
-		if fv.Kind() == reflect.Ptr {
-			if fv.IsNil() {
-				*fields = append(*fields, "")
-				continue
-			}
-			fv = fv.Elem()
-		}
-
-		switch fv.Kind() {
-		case reflect.Struct:
-			collectTSVFields(fv, fields)
-		case reflect.Slice:
-			if fv.Len() == 0 {
-				*fields = append(*fields, "")
-			} else {
-				data, err := json.Marshal(fv.Interface())
-				if err != nil {
-					*fields = append(*fields, fmt.Sprintf("%v", fv.Interface()))
-				} else {
-					*fields = append(*fields, string(data))
-				}
-			}
-		default:
-			*fields = append(*fields, fmt.Sprintf("%v", fv.Interface()))
-		}
-	}
 }
 
 func isZero(v reflect.Value) bool {

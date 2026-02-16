@@ -23,7 +23,6 @@ import (
 func resetFlags() {
 	debug = false
 	jsonFlag = false
-	plainFlag = false
 	resetCommandFlags(rootCmd)
 }
 
@@ -78,9 +77,6 @@ func TestHelp_RootCommand(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "--json") {
 		t.Error("Help should show --json flag")
-	}
-	if !strings.Contains(stdout, "--plain") {
-		t.Error("Help should show --plain flag")
 	}
 }
 
@@ -244,14 +240,6 @@ func TestOutputMode_JSON(t *testing.T) {
 	jsonFlag = true
 	if OutputMode() != output.ModeJSON {
 		t.Error("OutputMode should return ModeJSON when jsonFlag is set")
-	}
-}
-
-func TestOutputMode_Plain(t *testing.T) {
-	resetFlags()
-	plainFlag = true
-	if OutputMode() != output.ModePlain {
-		t.Error("OutputMode should return ModePlain when plainFlag is set")
 	}
 }
 
@@ -1333,26 +1321,6 @@ func TestZonesInfo_Success_JSON(t *testing.T) {
 	}
 }
 
-func TestZonesInfo_Success_Plain(t *testing.T) {
-	mock := &mockAPI{
-		getZoneByCodeResp: &parkster.Zone{
-			ID:       80500,
-			Name:     "Ericsson Kista",
-			ZoneCode: "80500",
-			City:     parkster.City{Name: "Stockholm"},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if !strings.Contains(stdout, "80500") {
-		t.Errorf("expected zone data in plain output, got: %q", stdout)
-	}
-}
-
 func TestZonesInfo_NumericID_WithoutLatLon_Success(t *testing.T) {
 	mock := &mockAPI{
 		getZoneResp: &parkster.Zone{
@@ -1669,38 +1637,6 @@ func TestStart_DryRun_JSON(t *testing.T) {
 	}
 	if dryRunData["dryRun"] != true {
 		t.Error("expected dryRun=true in dry-run data")
-	}
-}
-
-func TestStart_DryRun_Plain(t *testing.T) {
-	setAuth(t)
-
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID:              1,
-			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
-			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
-		},
-		getZoneResp: &parkster.Zone{
-			ID:       17429,
-			ZoneCode: "80500",
-			Name:     "Ericsson Kista",
-			FeeZone:  parkster.FeeZone{ID: 27545, Currency: parkster.Currency{Code: "SEK"}},
-		},
-		estimateCostResp: &parkster.CostEstimate{
-			Amount:   15.0,
-			Currency: "SEK",
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	// Plain mode should contain tab-separated values with cost info
-	if !strings.Contains(stdout, "15") {
-		t.Errorf("expected cost in plain output, got: %q", stdout)
 	}
 }
 
@@ -2273,32 +2209,6 @@ func TestChange_UntilInvalid_NoAuthNeeded(t *testing.T) {
 	}
 }
 
-func TestAuthStatus_Plain_TSV(t *testing.T) {
-	orig := getCredentials
-	getCredentials = func() (string, string, auth.CredentialSource, error) {
-		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
-	}
-	t.Cleanup(func() { getCredentials = orig })
-
-	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("auth", "status", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	// Plain mode should produce TSV, not "Logged in as: ..."
-	if strings.Contains(stdout, "Logged in as") {
-		t.Error("--plain should not output human-readable text")
-	}
-	if !strings.Contains(stdout, "true") {
-		t.Error("--plain should contain 'true' for authenticated field")
-	}
-	if !strings.Contains(stdout, "testuser@example.com") {
-		t.Error("--plain should contain the username")
-	}
-}
-
 func TestAuthLogin_InvalidCredentials_Error(t *testing.T) {
 	mock := &mockAPI{
 		loginErr: errors.New("authentication failed (status 401)"),
@@ -2346,96 +2256,11 @@ func TestStart_LonWithoutLat_Error(t *testing.T) {
 	}
 }
 
-func TestJsonAndPlain_MutuallyExclusive(t *testing.T) {
-	_, _, err := executeCommand("version", "--json", "--plain")
-	if err == nil {
-		t.Fatal("expected error when both --json and --plain specified")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
-	}
-}
-
 // =============================================================================
 // Tests added by 2026-02-15 CLI tree-search walkthrough.
-// Bug-related tests are skipped with t.Skip("known bug: ...") so the suite
-// stays green.  Remove the skip once the bug is fixed.
 // =============================================================================
 
-// --- BUG-1: --plain renders nested structs as raw Go syntax ---
-
-func TestZonesSearch_Plain_NoBraces(t *testing.T) {
-	mock := &mockAPI{
-		searchZonesResp: &parkster.SearchResult{
-			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
-				{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", City: parkster.City{Name: "Kista"}},
-			},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if strings.Contains(stdout, "{") {
-		t.Errorf("--plain should not contain curly braces, got: %q", stdout)
-	}
-	if !strings.Contains(stdout, "Kista") {
-		t.Errorf("expected city name in plain output, got: %q", stdout)
-	}
-}
-
-func TestZonesInfo_Plain_NoBraces(t *testing.T) {
-	mock := &mockAPI{
-		getZoneByCodeResp: &parkster.Zone{
-			ID: 17429, Name: "Ericsson", ZoneCode: "80500",
-			City: parkster.City{Name: "Kista"},
-			FeeZone: parkster.FeeZone{
-				ID:       27545,
-				Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
-				ParkingFees: []parkster.ParkingFee{
-					{AmountPerHour: 10.0, Description: "Mon-Fri", StartTime: 480, EndTime: 1080},
-				},
-			},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	// Check for Go struct syntax like {Kista} or {27545 ...} — but allow JSON braces
-	// Go %v format: {fieldValue fieldValue}, JSON format: {"key":value}
-	for i, ch := range stdout {
-		if ch == '{' && i+1 < len(stdout) && stdout[i+1] != '"' && stdout[i+1] != '}' {
-			t.Errorf("--plain should not contain Go struct syntax, got: %q", stdout)
-			break
-		}
-	}
-}
-
-// --- BUG-2: auth status --plain empty when not authenticated ---
-
-func TestAuthStatus_Plain_NotAuthenticated_ShowsError(t *testing.T) {
-	orig := getCredentials
-	getCredentials = func() (string, string, auth.CredentialSource, error) {
-		return "", "", "", fmt.Errorf("no credentials found")
-	}
-	t.Cleanup(func() { getCredentials = orig })
-
-	_, stderr, err := executeCommand("auth", "status", "--plain")
-	// authRequiredError returns errSilent
-	if err != nil && !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent or nil, got: %v", err)
-	}
-	if !strings.Contains(stderr, "not authenticated") && !strings.Contains(stderr, "Not authenticated") {
-		t.Errorf("expected 'not authenticated' message in stderr, got: %q", stderr)
-	}
-}
-
-// --- BUG-3: zones info missing lat/lon pairing validation ---
+// --- zones info missing lat/lon pairing validation ---
 
 func TestZonesInfo_LatWithoutLon_Error(t *testing.T) {
 	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.37")
@@ -2521,52 +2346,6 @@ func TestAuthStatus_EnvSource_JSON_ShouldIncludeSource(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "source") {
 		t.Errorf("auth status JSON should include 'source' field, got: %s", stdout)
-	}
-}
-
-// --- Additional coverage: version --plain ---
-
-func TestVersion_Plain(t *testing.T) {
-	stdout, _, err := executeCommand("version", "--plain")
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	// Plain should be tab-separated, not empty
-	if stdout == "" {
-		t.Error("version --plain should produce output")
-	}
-	if !strings.Contains(stdout, "\t") {
-		t.Errorf("version --plain should be tab-separated, got: %q", stdout)
-	}
-	// Should contain go version info
-	if !strings.Contains(stdout, "go") {
-		t.Errorf("version --plain should contain go version, got: %q", stdout)
-	}
-}
-
-// --- Additional coverage: --json --plain on non-version commands ---
-
-func TestJsonAndPlain_MutuallyExclusive_Status(t *testing.T) {
-	setAuth(t)
-	mock := &mockAPI{loginResp: &parkster.User{ID: 1}}
-	withMockClient(t, mock)
-
-	_, _, err := executeCommand("status", "--json", "--plain")
-	if err == nil {
-		t.Fatal("expected error when both --json and --plain specified on status")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
-	}
-}
-
-func TestJsonAndPlain_MutuallyExclusive_ZonesSearch(t *testing.T) {
-	_, _, err := executeCommand("zones", "search", "--lat", "59.37", "--lon", "17.89", "--json", "--plain")
-	if err == nil {
-		t.Fatal("expected error when both --json and --plain specified on zones search")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("expected 'mutually exclusive' in error, got: %v", err)
 	}
 }
 
@@ -2865,153 +2644,6 @@ func TestZones_BareCommand_ShowsHelp(t *testing.T) {
 	}
 }
 
-// --- Plain output for stop/change/start/status ---
-
-func TestStop_SingleActiveParking_Plain(t *testing.T) {
-	setAuth(t)
-
-	now := time.Now()
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID: 1,
-			ShortTermParkings: []parkster.Parking{
-				{
-					ID:          500,
-					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
-					Car:         parkster.Car{LicenseNbr: "ABC123"},
-					CheckInTime: now.UnixMilli(),
-					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
-					Cost:        10.50,
-					Currency:    parkster.Currency{Code: "SEK"},
-				},
-			},
-		},
-		stopParkingResp: &parkster.Parking{
-			ID:          500,
-			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
-			Car:         parkster.Car{LicenseNbr: "ABC123"},
-			Cost:        10.50,
-			Currency:    parkster.Currency{Code: "SEK"},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("stop", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if !strings.Contains(stdout, "500") {
-		t.Errorf("plain output should contain parking ID, got: %q", stdout)
-	}
-	if !strings.Contains(stdout, "\t") {
-		t.Errorf("plain output should be tab-separated, got: %q", stdout)
-	}
-}
-
-func TestChange_Duration_Plain(t *testing.T) {
-	setAuth(t)
-
-	now := time.Now()
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID: 1,
-			ShortTermParkings: []parkster.Parking{
-				{
-					ID:          500,
-					CheckInTime: now.UnixMilli(),
-					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
-				},
-			},
-		},
-		extendResp: &parkster.Parking{
-			ID:          500,
-			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
-			Car:         parkster.Car{LicenseNbr: "ABC123"},
-			TimeoutTime: now.Add(90 * time.Minute).UnixMilli(),
-			Currency:    parkster.Currency{Code: "SEK"},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("change", "--duration", "90", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if !strings.Contains(stdout, "500") {
-		t.Errorf("plain output should contain parking ID, got: %q", stdout)
-	}
-	if !strings.Contains(stdout, "\t") {
-		t.Errorf("plain output should be tab-separated, got: %q", stdout)
-	}
-}
-
-func TestStart_SingleCarSinglePayment_Plain(t *testing.T) {
-	setAuth(t)
-
-	now := time.Now()
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID:              1,
-			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
-			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
-		},
-		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{
-			ID:          999,
-			ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
-			Car:         parkster.Car{LicenseNbr: "ABC123"},
-			CheckInTime: now.UnixMilli(),
-			TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
-			Currency:    parkster.Currency{Code: "SEK"},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if !strings.Contains(stdout, "999") {
-		t.Errorf("plain output should contain parking ID, got: %q", stdout)
-	}
-	if !strings.Contains(stdout, "\t") {
-		t.Errorf("plain output should be tab-separated, got: %q", stdout)
-	}
-}
-
-func TestStatus_HasParkings_Plain(t *testing.T) {
-	setAuth(t)
-
-	now := time.Now()
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID: 1,
-			ShortTermParkings: []parkster.Parking{
-				{
-					ID:          500,
-					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Ericsson Kista"},
-					Car:         parkster.Car{LicenseNbr: "ABC123"},
-					CheckInTime: now.UnixMilli(),
-					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
-					Currency:    parkster.Currency{Code: "SEK"},
-				},
-			},
-		},
-	}
-	withMockClient(t, mock)
-
-	stdout, _, err := executeCommand("status", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if !strings.Contains(stdout, "500") {
-		t.Errorf("plain output should contain parking ID, got: %q", stdout)
-	}
-	if !strings.Contains(stdout, "\t") {
-		t.Errorf("plain output should be tab-separated, got: %q", stdout)
-	}
-}
-
 // --- Auth login/logout with mock credentials ---
 
 func TestAuthLogin_ValidCredentials_Success(t *testing.T) {
@@ -3222,43 +2854,6 @@ func TestAuthStatus_NotAuthenticated_Human(t *testing.T) {
 	}
 }
 
-// --- Mutually exclusive flags for more commands ---
-
-func TestJsonAndPlain_MutuallyExclusive_Change(t *testing.T) {
-	_, _, err := executeCommand("change", "--json", "--plain", "--duration", "30")
-	if err == nil {
-		t.Fatal("expected error for --json and --plain together")
-	}
-}
-
-func TestJsonAndPlain_MutuallyExclusive_Stop(t *testing.T) {
-	_, _, err := executeCommand("stop", "--json", "--plain")
-	if err == nil {
-		t.Fatal("expected error for --json and --plain together")
-	}
-}
-
-func TestJsonAndPlain_MutuallyExclusive_Start(t *testing.T) {
-	_, _, err := executeCommand("start", "--json", "--plain", "--zone", "17429", "--duration", "30")
-	if err == nil {
-		t.Fatal("expected error for --json and --plain together")
-	}
-}
-
-func TestJsonAndPlain_MutuallyExclusive_AuthStatus(t *testing.T) {
-	_, _, err := executeCommand("auth", "status", "--json", "--plain")
-	if err == nil {
-		t.Fatal("expected error for --json and --plain together")
-	}
-}
-
-func TestJsonAndPlain_MutuallyExclusive_ZonesInfo(t *testing.T) {
-	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.37", "--lon", "17.89", "--json", "--plain")
-	if err == nil {
-		t.Fatal("expected error for --json and --plain together")
-	}
-}
-
 // --- Help for remaining subcommands ---
 
 func TestHelp_ChangeCommand_UntilFlag(t *testing.T) {
@@ -3456,7 +3051,7 @@ func TestChange_LoginFails_Error(t *testing.T) {
 
 // --- Multiple active parkings for stop/change ---
 
-func TestStop_MultipleParkings_Plain_Error(t *testing.T) {
+func TestStop_MultipleParkings_NoParkingID_Error(t *testing.T) {
 	setAuth(t)
 
 	now := time.Now()
@@ -3471,7 +3066,7 @@ func TestStop_MultipleParkings_Plain_Error(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("stop", "--plain")
+	_, _, err := executeCommand("stop")
 	if err == nil {
 		t.Fatal("expected error for multiple active parkings without --parking-id")
 	}
