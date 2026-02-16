@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
@@ -46,7 +45,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		if OutputMode() == output.ModeJSON {
 			return output.PrintSuccess([]any{}, OutputMode())
 		}
-		fmt.Fprintln(os.Stderr, "No active parkings")
+		statusMsg("No active parkings")
 		return nil
 	}
 

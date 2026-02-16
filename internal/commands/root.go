@@ -7,12 +7,14 @@ import (
 
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
 	// Global flags
-	debug    bool
-	jsonFlag bool
+	debug     bool
+	jsonFlag  bool
+	quietFlag bool
 )
 
 // errSilent indicates the error message was already printed.
@@ -39,6 +41,7 @@ Features:
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug output to stderr")
 	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output as JSON with envelope")
+	rootCmd.PersistentFlags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress status messages on stderr")
 
 	// Environment variable bindings
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
@@ -65,6 +68,21 @@ func debugLog(fmt_ string, args ...any) {
 	if debug {
 		fmt.Fprintf(os.Stderr, "DEBUG: "+fmt_+"\n", args...)
 	}
+}
+
+// isStderrTTY reports whether stderr is connected to a terminal.
+// Declared as a variable so tests can override it.
+var isStderrTTY = func() bool {
+	return term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+// statusMsg prints a status message to stderr in human mode.
+// Suppressed when: --quiet, --json, or stderr is not a TTY.
+func statusMsg(format string, args ...any) {
+	if quietFlag || jsonFlag || !isStderrTTY() {
+		return
+	}
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
 // authRequiredError prints a friendly no-auth message and returns errSilent.

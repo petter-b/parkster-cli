@@ -23,6 +23,8 @@ import (
 func resetFlags() {
 	debug = false
 	jsonFlag = false
+	quietFlag = false
+	isStderrTTY = func() bool { return true } // pipes aren't TTYs; override for test capture
 	resetCommandFlags(rootCmd)
 }
 
@@ -3286,5 +3288,177 @@ func TestChange_Duration_OutputShowsZoneAndCar(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "15.00 SEK") {
 		t.Errorf("expected cost '15.00 SEK' in output, got: %q", stdout)
+	}
+}
+
+// --- Quiet flag tests ---
+
+func TestQuiet_SuppressesStatusNoParkings(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("--quiet", "status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if strings.Contains(stderr, "No active parkings") {
+		t.Error("--quiet should suppress 'No active parkings' on stderr")
+	}
+}
+
+func TestQuiet_SuppressesParkingStopped(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+		stopParkingResp: &parkster.Parking{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, Cost: 5.0, Currency: parkster.Currency{Code: "SEK"}},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("--quiet", "stop")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if strings.Contains(stderr, "Parking stopped") {
+		t.Error("--quiet should suppress 'Parking stopped' on stderr")
+	}
+	// Stdout should still have the parking details
+	if stdout == "" {
+		t.Error("expected parking details on stdout even with --quiet")
+	}
+}
+
+func TestQuiet_SuppressesParkingStarted(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Test Zone", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, Cost: 0},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("--quiet", "start", "--zone", "17429", "--duration", "30")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if strings.Contains(stderr, "Parking started") {
+		t.Error("--quiet should suppress 'Parking started' on stderr")
+	}
+	if stdout == "" {
+		t.Error("expected parking details on stdout even with --quiet")
+	}
+}
+
+func TestQuiet_NotSetShowsStatusMessages(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1},
+	}
+	withMockClient(t, mock)
+
+	// Without --quiet, status messages should appear (TTY is overridden to true in tests)
+	_, stderr, err := executeCommand("status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "No active parkings") {
+		t.Errorf("expected 'No active parkings' in stderr without --quiet, got: %q", stderr)
+	}
+}
+
+func TestStatusMsg_TTYFalse_Suppresses(t *testing.T) {
+	resetFlags()
+	quietFlag = false
+	jsonFlag = false
+	isStderrTTY = func() bool { return false }
+	defer func() { isStderrTTY = func() bool { return true } }()
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	statusMsg("should not appear")
+
+	_ = w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+
+	if buf.String() != "" {
+		t.Errorf("statusMsg should produce no output when TTY=false, got: %q", buf.String())
+	}
+}
+
+func TestStatusMsg_QuietTrue(t *testing.T) {
+	resetFlags()
+	quietFlag = true
+	defer func() { quietFlag = false }()
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	statusMsg("should not appear")
+
+	_ = w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+
+	if buf.String() != "" {
+		t.Errorf("statusMsg should produce no output when quiet=true, got: %q", buf.String())
+	}
+}
+
+func TestStatusMsg_QuietFalse(t *testing.T) {
+	resetFlags()
+	quietFlag = false
+	// isStderrTTY is already set to return true by resetFlags()
+
+	// Capture stderr
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	statusMsg("hello %s", "world")
+
+	_ = w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+
+	if buf.String() != "hello world\n" {
+		t.Errorf("statusMsg should produce output when quiet=false, got: %q", buf.String())
+	}
+}
+
+func TestHelp_ShowsQuietFlag(t *testing.T) {
+	stdout, _, err := executeCommand("--help")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "--quiet") && !strings.Contains(stdout, "-q") {
+		t.Error("Help should show --quiet / -q flag")
 	}
 }

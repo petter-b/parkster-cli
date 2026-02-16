@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
@@ -62,7 +61,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 		if OutputMode() == output.ModeJSON {
 			return output.PrintSuccess([]any{}, OutputMode())
 		}
-		fmt.Fprintln(os.Stderr, "No active parkings")
+		statusMsg("No active parkings")
 		return nil
 	} else if len(parkings) == 1 {
 		parkingID = parkings[0].ID
@@ -82,7 +81,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 	if mode != output.ModeHuman {
 		return output.PrintSuccess(parking, mode)
 	}
-	fmt.Fprintln(os.Stderr, "Parking stopped")
+	statusMsg("Parking stopped")
 	fmt.Println(output.FormatParkingStopped(*parking))
 	return nil
 }

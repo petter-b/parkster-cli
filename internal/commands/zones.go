@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/output"
@@ -97,7 +96,7 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 		if OutputMode() == output.ModeJSON {
 			return output.PrintSuccess([]any{}, OutputMode())
 		}
-		fmt.Fprintln(os.Stderr, "No zones found")
+		statusMsg("No zones found")
 		return nil
 	}
 

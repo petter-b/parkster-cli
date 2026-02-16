@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -241,12 +240,12 @@ func runStart(cmd *cobra.Command, args []string) error {
 			result.Currency = estimate.Currency
 		}
 
-		fmt.Fprintf(os.Stderr, "DRY RUN: Would start parking\n")
-		fmt.Fprintf(os.Stderr, "  Zone: %s %s (%s)\n", zone.ZoneCode, zone.Name, fmt.Sprintf("%d", zone.ID))
-		fmt.Fprintf(os.Stderr, "  Car: %s\n", selectedCar.LicenseNbr)
-		fmt.Fprintf(os.Stderr, "  Duration: %d minutes\n", timeout)
+		statusMsg("DRY RUN: Would start parking")
+		statusMsg("  Zone: %s %s (%d)", zone.ZoneCode, zone.Name, zone.ID)
+		statusMsg("  Car: %s", selectedCar.LicenseNbr)
+		statusMsg("  Duration: %d minutes", timeout)
 		if result.Cost > 0 {
-			fmt.Fprintf(os.Stderr, "  Estimated cost: %.2f %s\n", result.Cost, result.Currency)
+			statusMsg("  Estimated cost: %.2f %s", result.Cost, result.Currency)
 		}
 
 		return output.PrintSuccess(result, OutputMode())
@@ -263,7 +262,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	if mode != output.ModeHuman {
 		return output.PrintSuccess(parking, mode)
 	}
-	fmt.Fprintln(os.Stderr, "Parking started")
+	statusMsg("Parking started")
 	fmt.Println(output.FormatParking(*parking))
 	return nil
 }
