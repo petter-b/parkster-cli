@@ -33,7 +33,7 @@ func TestDefaultPath_XDGOverride(t *testing.T) {
 func TestDefault_ReturnsValidConfig(t *testing.T) {
 	cfg := Default()
 	if cfg.OutputFormat != "human" {
-		t.Errorf("Expected default OutputFormat 'plain', got %s", cfg.OutputFormat)
+		t.Errorf("Expected default OutputFormat 'human', got %s", cfg.OutputFormat)
 	}
 	if cfg.Debug != false {
 		t.Error("Expected default Debug false")
