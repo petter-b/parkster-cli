@@ -433,7 +433,7 @@ User: parkster start --zone 17429 --duration 30
 8. parking = client.StartParking(17429, 27545, 67890, paymentID, 30)
    → POST /parkings/short-term (form-encoded + device params in body!)
    → Returns: {id: 123456, status: "ACTIVE", cost: 0.0}
-9. output.Print(parking, "plain")
+9. output.PrintSuccess(parking, OutputMode())
 ```
 
 ## Post-MVP Features
@@ -467,4 +467,4 @@ See design document for full list. Key additions:
    - Extend uses offset
 3. **See API.md** - complete API reference with examples
 4. **KISS/YAGNI** - don't add features until needed
-5. **Output flags**: Use `--json` / `--plain`, not `--format` (see steipete CLIs)
+5. **Output flags**: Use `--json` and `-q`/`--quiet`, not `--format`

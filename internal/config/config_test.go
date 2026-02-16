@@ -189,7 +189,7 @@ func TestSave_CreatesDirectory(t *testing.T) {
 		t.Fatalf("Load returned error: %v", err)
 	}
 	if loaded.OutputFormat != "human" {
-		t.Errorf("Expected OutputFormat 'plain', got %q", loaded.OutputFormat)
+		t.Errorf("Expected OutputFormat 'human', got %q", loaded.OutputFormat)
 	}
 }
 
