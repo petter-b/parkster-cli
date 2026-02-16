@@ -5,26 +5,29 @@ import (
 	"testing"
 )
 
-func TestDetect_ReturnsNonEmpty(t *testing.T) {
+func TestDetect_ReturnsResult(t *testing.T) {
+	// When run from `go test`, the parent is `go` which is in skipNames.
+	// Detect() may return empty Info or find something further up the tree.
+	// Just verify it doesn't panic.
 	info := Detect()
-	if info.Name == "" {
-		t.Error("expected Detect() to return a non-empty Name when run from go test")
-	}
-	if info.PID == 0 {
-		t.Error("expected Detect() to return a non-zero PID")
-	}
+	_ = info
 }
 
-func TestDetect_PIDIsValid(t *testing.T) {
+func TestDetect_ReturnsBasename(t *testing.T) {
 	info := Detect()
-	// The PID should be a positive number
-	if info.PID < 1 {
-		t.Errorf("expected positive PID, got %d", info.PID)
+	// If a caller was found, it should be a basename (no slashes)
+	if info.Name != "" {
+		for _, c := range info.Name {
+			if c == '/' {
+				t.Errorf("expected basename without slashes, got %q", info.Name)
+				break
+			}
+		}
 	}
 }
 
 func TestSkipNames_ContainsShells(t *testing.T) {
-	expected := []string{"zsh", "bash", "sh", "/bin/zsh", "/bin/bash", "/bin/sh"}
+	expected := []string{"zsh", "bash", "sh", "-zsh", "-bash", "-sh"}
 	for _, name := range expected {
 		if !skipNames[name] {
 			t.Errorf("expected skipNames to contain %q", name)

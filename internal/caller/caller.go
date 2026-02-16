@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
 // skipNames are generic wrapper processes to skip when walking the tree.
+// Uses basenames — processName() output is normalized via filepath.Base().
 var skipNames = map[string]bool{
 	"go": true, "zsh": true, "bash": true, "sh": true,
-	"/bin/zsh": true, "/bin/bash": true, "/bin/sh": true,
-	"-/bin/zsh": true, "-/bin/bash": true, // login shells
-	"/usr/bin/login": true, "login": true,
+	"-zsh": true, "-bash": true, "-sh": true, // login shells (prefixed with -)
+	"login": true,
 	"node": true, // often just a wrapper
 }
 
@@ -28,18 +29,18 @@ type Info struct {
 func Detect() Info {
 	pid := os.Getppid()
 	for i := 0; i < 10 && pid > 1; i++ {
-		name := processName(pid)
-		if name == "" {
+		raw := processName(pid)
+		if raw == "" {
 			break
 		}
+		name := filepath.Base(raw)
 		if !skipNames[name] {
 			return Info{Name: name, PID: pid}
 		}
 		pid = parentPID(pid)
 	}
-	// Fallback: return immediate parent
-	ppid := os.Getppid()
-	return Info{Name: processName(ppid), PID: ppid}
+	// Could not find an interesting ancestor
+	return Info{}
 }
 
 func processName(pid int) string {
