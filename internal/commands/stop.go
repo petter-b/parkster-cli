@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +27,7 @@ func init() {
 func runStop(cmd *cobra.Command, args []string) error {
 	parkingIDFlag, _ := cmd.Flags().GetInt("parking-id")
 
-	username, password, _, err := auth.GetCredentials()
+	username, password, _, err := getCredentials()
 	if err != nil {
 		return authRequiredError()
 	}

@@ -100,7 +100,7 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid credentials: %w", err)
 	}
 
-	if err := auth.SaveCredentials(username, password); err != nil {
+	if err := saveCredentials(username, password); err != nil {
 		return fmt.Errorf("failed to store credentials: %w", err)
 	}
 
@@ -109,7 +109,7 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runAuthRemove(cmd *cobra.Command, args []string) error {
-	if err := auth.DeleteCredentials(); err != nil {
+	if err := deleteCredentials(); err != nil {
 		if errors.Is(err, auth.ErrNoCredentials) {
 			fmt.Fprintln(os.Stderr, "No credentials to remove")
 			return nil
@@ -128,7 +128,7 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		Source        string `json:"source,omitempty"`
 	}
 
-	username, _, source, err := auth.GetCredentials()
+	username, _, source, err := getCredentials()
 	if err != nil {
 		status := authStatus{Authenticated: false}
 		mode := OutputMode()

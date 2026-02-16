@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +24,7 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	username, password, _, err := auth.GetCredentials()
+	username, password, _, err := getCredentials()
 	if err != nil {
 		return authRequiredError()
 	}
