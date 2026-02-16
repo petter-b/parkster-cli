@@ -65,10 +65,11 @@ test-cover:
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
-## test-interactive: Run interactive tests (requires OS keychain access)
+## test-interactive: Run interactive tests (may prompt for keychain access)
 test-interactive:
 	@echo "Running interactive tests..."
-	$(GOTEST) -v -tags interactive ./...
+	$(GOTEST) -v -tags interactive ./internal/commands/
+
 
 ## lint: Run linter (requires golangci-lint)
 lint:

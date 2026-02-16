@@ -9,14 +9,11 @@ import (
 	"github.com/petter-b/parkster-cli/internal/auth"
 )
 
-// These tests exercise the real OS keychain. They only run with:
-//
-//	go test -tags interactive ./internal/commands/
-//
-// They are excluded from normal `go test ./...` runs to avoid
-// keychain prompts in CI or on developer machines.
-
-func TestInteractive_AuthLoginLogoutCycle(t *testing.T) {
+// TestKeychain_AuthLoginLogoutCycle exercises the real OS keychain
+// through the full auth login → status → logout → status cycle.
+// Only runs with: go test -tags interactive ./internal/commands/
+// Requires a signed binary or keychain access granted to the test binary.
+func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 	// Ensure real auth functions are used (not test swaps)
 	origGet := getCredentials
 	origSave := saveCredentials
