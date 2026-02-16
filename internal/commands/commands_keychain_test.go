@@ -1,14 +1,17 @@
 package commands
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/petter-b/parkster-cli/internal/auth"
+	"github.com/petter-b/parkster-cli/internal/parkster"
 )
 
 // TestKeychain_AuthLoginLogoutCycle exercises the real OS keychain
 // through the full auth login → status → logout → status cycle.
+// The API client is mocked since we only test keychain storage here.
 func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 	// Ensure real auth functions are used (not test swaps)
 	origGet := getCredentials
@@ -23,13 +26,25 @@ func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 		deleteCredentials = origDelete
 	})
 
+	// Mock the API client — this test only exercises keychain, not the API
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1, Email: "interactive-test@example.com"},
+	}
+	withMockClient(t, mock)
+
 	// Save test credentials — skip if keychain access is denied
 	if err := saveCredentials("interactive-test@example.com", "test-password"); err != nil {
-		t.Skipf("keychain access denied or unavailable: %v", err)
+		t.Skipf("keychain write denied or unavailable: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = deleteCredentials()
 	})
+
+	// Verify keychain read also works — skip if read access is denied
+	// (macOS may prompt for keychain access that can't be answered in tests)
+	if _, _, _, err := getCredentials(); err != nil {
+		t.Skipf("keychain read denied or unavailable: %v", err)
+	}
 
 	// Verify auth status shows authenticated
 	_, stderr, err := executeCommand("auth", "status")
@@ -50,8 +65,9 @@ func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 
 	// Verify auth status shows not authenticated
 	_, stderr, err = executeCommand("auth", "status")
-	if err != nil {
-		t.Fatalf("auth status should not error, got: %v", err)
+	// authRequiredError returns errSilent
+	if err != nil && !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent or nil, got: %v", err)
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("after logout, should show 'Not authenticated', got: %q", stderr)

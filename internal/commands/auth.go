@@ -126,21 +126,31 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		Authenticated bool   `json:"authenticated"`
 		Username      string `json:"username,omitempty"`
 		Source        string `json:"source,omitempty"`
+		Error         string `json:"error,omitempty"`
 	}
 
-	username, _, source, err := getCredentials()
+	username, password, source, err := getCredentials()
 	if err != nil {
-		status := authStatus{Authenticated: false}
-		mode := OutputMode()
+		return authRequiredError()
+	}
+
+	// Validate credentials against API
+	client := newAPIClient(username, password)
+	_, loginErr := client.Login()
+
+	mode := OutputMode()
+
+	if loginErr != nil {
+		// Credentials exist but are invalid
 		if mode != output.ModeHuman {
-			return output.PrintSuccess(status, mode)
+			output.PrintError(fmt.Sprintf("credentials found but authentication failed (%s)", source), mode)
+			return nil
 		}
-		fmt.Fprintln(os.Stderr, "Not authenticated")
+		fmt.Fprintf(os.Stderr, "Credentials found but authentication failed (%s)\n", source)
 		return nil
 	}
 
 	status := authStatus{Authenticated: true, Username: username, Source: string(source)}
-	mode := OutputMode()
 	if mode != output.ModeHuman {
 		return output.PrintSuccess(status, mode)
 	}

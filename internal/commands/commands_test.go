@@ -1003,6 +1003,9 @@ func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
 	}
 	t.Cleanup(func() { getCredentials = orig })
 
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
+	withMockClient(t, mock)
+
 	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -1020,8 +1023,9 @@ func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
 	t.Cleanup(func() { getCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "status")
-	if err != nil {
-		t.Fatalf("expected success (not authenticated is not an error), got: %v", err)
+	// authRequiredError() returns errSilent
+	if err != nil && !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent or nil, got: %v", err)
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
@@ -1034,6 +1038,9 @@ func TestAuthStatus_JSON_Envelope(t *testing.T) {
 		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
 	}
 	t.Cleanup(func() { getCredentials = orig })
+
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
+	withMockClient(t, mock)
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
 	if err != nil {
@@ -2273,6 +2280,9 @@ func TestAuthStatus_Plain_TSV(t *testing.T) {
 	}
 	t.Cleanup(func() { getCredentials = orig })
 
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
+	withMockClient(t, mock)
+
 	stdout, _, err := executeCommand("auth", "status", "--plain")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -2408,19 +2418,20 @@ func TestZonesInfo_Plain_NoBraces(t *testing.T) {
 
 // --- BUG-2: auth status --plain empty when not authenticated ---
 
-func TestAuthStatus_Plain_NotAuthenticated_ShowsFalse(t *testing.T) {
+func TestAuthStatus_Plain_NotAuthenticated_ShowsError(t *testing.T) {
 	orig := getCredentials
 	getCredentials = func() (string, string, auth.CredentialSource, error) {
 		return "", "", "", fmt.Errorf("no credentials found")
 	}
 	t.Cleanup(func() { getCredentials = orig })
 
-	stdout, _, err := executeCommand("auth", "status", "--plain")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
+	_, stderr, err := executeCommand("auth", "status", "--plain")
+	// authRequiredError returns errSilent
+	if err != nil && !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent or nil, got: %v", err)
 	}
-	if !strings.Contains(stdout, "false") {
-		t.Errorf("--plain should contain 'false' for unauthenticated, got: %q", stdout)
+	if !strings.Contains(stderr, "not authenticated") && !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'not authenticated' message in stderr, got: %q", stderr)
 	}
 }
 
@@ -2482,6 +2493,9 @@ func TestAuthStatus_EnvSource_ShouldIndicateSource(t *testing.T) {
 	}
 	t.Cleanup(func() { getCredentials = orig })
 
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
+	withMockClient(t, mock)
+
 	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -2497,6 +2511,9 @@ func TestAuthStatus_EnvSource_JSON_ShouldIncludeSource(t *testing.T) {
 		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
 	}
 	t.Cleanup(func() { getCredentials = orig })
+
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
+	withMockClient(t, mock)
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
 	if err != nil {
@@ -3196,8 +3213,9 @@ func TestAuthStatus_NotAuthenticated_Human(t *testing.T) {
 	t.Cleanup(func() { getCredentials = origGet })
 
 	_, stderr, err := executeCommand("auth", "status")
-	if err != nil {
-		t.Fatalf("auth status should not error, got: %v", err)
+	// authRequiredError returns errSilent
+	if err != nil && !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent or nil, got: %v", err)
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
@@ -3523,5 +3541,105 @@ func TestAuthLogin_SaveFails_Error(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to store credentials") {
 		t.Errorf("expected 'failed to store credentials' in error, got: %v", err)
+	}
+}
+
+// --- Auth status tests ---
+
+func TestAuthStatus_ValidCredentials(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1, Email: "test@example.com"},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("auth", "status")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Logged in as: testuser") {
+		t.Errorf("expected 'Logged in as: testuser' in stderr, got: %q", stderr)
+	}
+}
+
+func TestAuthStatus_InvalidCredentials(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginErr: fmt.Errorf("authentication failed (status 401)"),
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("auth", "status")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Credentials found but authentication failed") {
+		t.Errorf("expected auth failure message in stderr, got: %q", stderr)
+	}
+}
+
+func TestAuthStatus_NoCredentials(t *testing.T) {
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", fmt.Errorf("no credentials")
+	}
+	t.Cleanup(func() { getCredentials = orig })
+
+	_, stderr, err := executeCommand("auth", "status")
+	// authRequiredError returns errSilent which is suppressed
+	if err != nil && !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent or nil, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Not authenticated") {
+		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
+	}
+	if !strings.Contains(stderr, "parkster auth login") {
+		t.Errorf("expected login hint in stderr, got: %q", stderr)
+	}
+}
+
+func TestAuthStatus_ValidCredentials_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1, Email: "test@example.com"},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("auth", "status", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got: %v\nOutput: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
+	}
+}
+
+func TestAuthStatus_InvalidCredentials_JSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginErr: fmt.Errorf("authentication failed (status 401)"),
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("auth", "status", "--json")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got: %v\nOutput: %s", err, stdout)
+	}
+	if envelope.Success {
+		t.Error("expected success=false for invalid credentials")
 	}
 }
