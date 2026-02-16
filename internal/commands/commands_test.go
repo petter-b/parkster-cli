@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
 	"github.com/spf13/cobra"
@@ -320,11 +320,15 @@ func withMockClient(t *testing.T, m *mockAPI) {
 	t.Cleanup(func() { newAPIClient = orig })
 }
 
-// setAuth sets the environment variables for authentication.
+// setAuth swaps the getCredentials function var to return test credentials,
+// bypassing keychain and environment variables entirely.
 func setAuth(t *testing.T) {
 	t.Helper()
-	t.Setenv("PARKSTER_USERNAME", "testuser")
-	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "testuser", "testpass", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
 }
 
 // --- Start command tests ---
@@ -993,8 +997,11 @@ func TestStatus_LoginFails_Error(t *testing.T) {
 // --- Auth status command tests ---
 
 func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
-	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
@@ -1006,14 +1013,11 @@ func TestAuthStatus_WithEnvCredentials_Authenticated(t *testing.T) {
 }
 
 func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
-	// When no env vars are set, auth.GetCredentials falls through to keyring
-	// which can block on macOS waiting for Keychain access prompt.
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: macOS Keychain may block in test environment")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", fmt.Errorf("no credentials found")
 	}
-
-	t.Setenv("PARKSTER_USERNAME", "")
-	t.Setenv("PARKSTER_PASSWORD", "")
+	t.Cleanup(func() { getCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
@@ -1025,8 +1029,11 @@ func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
 }
 
 func TestAuthStatus_JSON_Envelope(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
-	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
 	if err != nil {
@@ -2260,8 +2267,11 @@ func TestChange_UntilInvalid_NoAuthNeeded(t *testing.T) {
 }
 
 func TestAuthStatus_Plain_TSV(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
-	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
 
 	stdout, _, err := executeCommand("auth", "status", "--plain")
 	if err != nil {
@@ -2399,12 +2409,11 @@ func TestZonesInfo_Plain_NoBraces(t *testing.T) {
 // --- BUG-2: auth status --plain empty when not authenticated ---
 
 func TestAuthStatus_Plain_NotAuthenticated_ShowsFalse(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: macOS Keychain may block in test environment")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", fmt.Errorf("no credentials found")
 	}
-
-	t.Setenv("PARKSTER_USERNAME", "")
-	t.Setenv("PARKSTER_PASSWORD", "")
+	t.Cleanup(func() { getCredentials = orig })
 
 	stdout, _, err := executeCommand("auth", "status", "--plain")
 	if err != nil {
@@ -2449,12 +2458,11 @@ func TestZonesSearch_NegativeRadius_Error(t *testing.T) {
 // --- BUG-5: auth logout succeeds when no credentials exist ---
 
 func TestAuthLogout_NoCredentials_ShouldIndicate(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("skipping: macOS Keychain may block in test environment")
+	orig := deleteCredentials
+	deleteCredentials = func() error {
+		return auth.ErrNoCredentials
 	}
-
-	t.Setenv("PARKSTER_USERNAME", "")
-	t.Setenv("PARKSTER_PASSWORD", "")
+	t.Cleanup(func() { deleteCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "logout")
 	if err != nil {
@@ -2468,8 +2476,11 @@ func TestAuthLogout_NoCredentials_ShouldIndicate(t *testing.T) {
 // --- BUG-6: auth status does not indicate credential source ---
 
 func TestAuthStatus_EnvSource_ShouldIndicateSource(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
-	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "status")
 	if err != nil {
@@ -2481,8 +2492,11 @@ func TestAuthStatus_EnvSource_ShouldIndicateSource(t *testing.T) {
 }
 
 func TestAuthStatus_EnvSource_JSON_ShouldIncludeSource(t *testing.T) {
-	t.Setenv("PARKSTER_USERNAME", "testuser@example.com")
-	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "testuser@example.com", "testpass", auth.SourceEnvironment, nil
+	}
+	t.Cleanup(func() { getCredentials = orig })
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
 	if err != nil {
