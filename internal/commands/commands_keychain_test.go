@@ -1,3 +1,5 @@
+//go:build interactive
+
 package commands
 
 import (
