@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -124,8 +125,14 @@ func runChange(cmd *cobra.Command, args []string) error {
 	} else if len(parkings) == 1 {
 		parkingIdx = 0
 	} else {
+		msg := "multiple active parkings found, use --parking-id flag to specify"
+		if OutputMode() != output.ModeHuman {
+			fmt.Fprintln(os.Stderr, output.FormatParkingList(parkings))
+			output.PrintError(msg, OutputMode())
+			return errSilent
+		}
 		fmt.Println(output.FormatParkingList(parkings))
-		return fmt.Errorf("multiple active parkings found, use --parking-id flag to specify")
+		return fmt.Errorf("%s", msg)
 	}
 
 	selected := parkings[parkingIdx]

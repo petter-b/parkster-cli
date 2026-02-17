@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -169,8 +170,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else if len(user.Cars) == 0 {
 		return fmt.Errorf("no cars registered, add a car first")
 	} else {
+		msg := "multiple cars found, use --car flag to specify (license plate or name)"
+		if OutputMode() != output.ModeHuman {
+			fmt.Fprintln(os.Stderr, output.FormatCarList(user.Cars))
+			output.PrintError(msg, OutputMode())
+			return errSilent
+		}
 		fmt.Println(output.FormatCarList(user.Cars))
-		return fmt.Errorf("multiple cars found, use --car flag to specify (license plate or name)")
+		return fmt.Errorf("%s", msg)
 	}
 
 	debugLog("selected car: %s", selectedCar.LicenseNbr)
@@ -202,8 +209,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else if len(user.PaymentAccounts) == 0 {
 		return fmt.Errorf("no payment methods configured, add a payment method first")
 	} else {
+		msg := "multiple payment accounts found, use --payment flag to specify"
+		if OutputMode() != output.ModeHuman {
+			fmt.Fprintln(os.Stderr, output.FormatPaymentList(user.PaymentAccounts))
+			output.PrintError(msg, OutputMode())
+			return errSilent
+		}
 		fmt.Println(output.FormatPaymentList(user.PaymentAccounts))
-		return fmt.Errorf("multiple payment accounts found, use --payment flag to specify")
+		return fmt.Errorf("%s", msg)
 	}
 
 	debugLog("selected payment: %s", selectedPayment.PaymentAccountID)
