@@ -1,6 +1,7 @@
 .PHONY: build test test-interactive test-integration lint fmt clean install help setup-hooks
 
 # Variables
+export GOTOOLCHAIN := auto
 BINARY_NAME := parkster
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")

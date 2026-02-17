@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+export GOTOOLCHAIN=auto
+
 echo "Running pre-commit checks..."
 
 # 1. Check formatting
