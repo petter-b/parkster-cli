@@ -937,3 +937,78 @@ func TestStartParking_ErrorWithoutDisplayMessage(t *testing.T) {
 		t.Errorf("Expected 'status 400' fallback in error, got: %s", err.Error())
 	}
 }
+
+// --- Non-JSON API response tests ---
+
+func TestLogin_HTMLResponse_GracefulError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("<html><body>502 Bad Gateway</body></html>"))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.Login()
+	if err == nil {
+		t.Fatal("expected error for HTML response")
+	}
+	// Should produce a usable error message, not a JSON parse error
+	if !strings.Contains(err.Error(), "authentication failed") {
+		t.Errorf("expected 'authentication failed' in error, got: %v", err)
+	}
+}
+
+func TestGetZone_PlainTextError_GracefulError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Internal Server Error"))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetZone(17429)
+	if err == nil {
+		t.Fatal("expected error for plain text response")
+	}
+	if !strings.Contains(err.Error(), "zone not found") {
+		t.Errorf("expected 'zone not found' in error, got: %v", err)
+	}
+}
+
+func TestStartParking_HTMLError_GracefulError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte("<html>Service Unavailable</html>"))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.StartParking(17429, 27545, 1, "PAY:1", 30)
+	if err == nil {
+		t.Fatal("expected error for HTML response")
+	}
+	if !strings.Contains(err.Error(), "failed to start parking") {
+		t.Errorf("expected 'failed to start parking' in error, got: %v", err)
+	}
+}
+
+func TestGetZone_EmptyBody_GracefulError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		// Empty body — no content at all
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.GetZone(99999)
+	if err == nil {
+		t.Fatal("expected error for empty body")
+	}
+	// Should fall back to status-code-based error
+	if !strings.Contains(err.Error(), "404") && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected status code or 'not found' in error, got: %v", err)
+	}
+}
