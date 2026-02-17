@@ -65,9 +65,26 @@ func init() {
 func Execute() error {
 	err := rootCmd.Execute()
 	if err != nil && !errors.Is(err, errSilent) {
-		output.PrintError(err.Error(), OutputMode())
+		mode := OutputMode()
+		// If flag parsing failed, jsonFlag may not be set even though
+		// the user passed --json. Check os.Args as a fallback.
+		if mode == output.ModeHuman && hasJSONFlag(os.Args) {
+			mode = output.ModeJSON
+		}
+		output.PrintError(err.Error(), mode)
 	}
 	return err
+}
+
+// hasJSONFlag checks os.Args for --json. Used as a fallback when Cobra flag
+// parsing fails before it can set jsonFlag.
+func hasJSONFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--json" {
+			return true
+		}
+	}
+	return false
 }
 
 // OutputMode returns the current output mode based on flags

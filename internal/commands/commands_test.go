@@ -4453,3 +4453,29 @@ func TestStart_ExtraArgs_Error(t *testing.T) {
 		t.Errorf("expected 'unknown command' error, got: %v", err)
 	}
 }
+
+func TestFlagParseError_JSON_WrappedInEnvelope(t *testing.T) {
+	// --lat expects float64; "abc" should fail parsing.
+	// Even though --json is passed, Cobra may not have parsed it before the error.
+	// We must set os.Args because hasJSONFlag checks os.Args as a fallback.
+	oldArgs := os.Args
+	os.Args = []string{"parkster", "zones", "search", "--lat", "abc", "--lon", "1.0", "--json"}
+	defer func() { os.Args = oldArgs }()
+
+	stdout, _, err := executeCommandFull("zones", "search", "--lat", "abc", "--lon", "1.0", "--json")
+	if err == nil {
+		t.Fatal("expected error from invalid --lat value")
+	}
+
+	// The error should be wrapped in a JSON envelope on stdout
+	var envelope map[string]interface{}
+	if jsonErr := json.Unmarshal([]byte(stdout), &envelope); jsonErr != nil {
+		t.Fatalf("expected valid JSON error envelope, got parse error: %v\nstdout: %q", jsonErr, stdout)
+	}
+	if envelope["success"] != false {
+		t.Errorf("expected success=false, got %v", envelope["success"])
+	}
+	if envelope["error"] == nil {
+		t.Error("expected non-null error field")
+	}
+}
