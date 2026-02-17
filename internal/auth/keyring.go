@@ -121,84 +121,79 @@ func deleteFileCredentials() error {
 	return nil
 }
 
-// GetCredentials retrieves credentials.
-// Priority: OS keyring > plaintext file > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
-func GetCredentials() (username, password string, source CredentialSource, err error) {
-	// 1. Try OS keyring
-	ring, kerr := openKeyring()
-	if kerr == nil {
-		username, password, err = getCredentialsFromKeyring(ring)
+// credentialOpts configures credential retrieval behavior.
+type credentialOpts struct {
+	ring   KeyringStore // nil = use default OS keyring
+	caller string       // non-empty = update keychain description after retrieval
+}
+
+// errNoCredentials is the shared error for all credential retrieval failures.
+var errNoCredentials = fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+
+// getCredentialsInternal is the unified credential retrieval implementation.
+// Priority: keyring > file > env vars.
+// When opts.ring is nil, it opens the default OS keyring (and skips on error).
+// When opts.ring is non-nil (tests), it uses the injected store and skips file fallback.
+func getCredentialsInternal(opts credentialOpts) (username, password string, source CredentialSource, err error) {
+	if opts.ring != nil {
+		// Injected keyring (test path): skip file fallback
+		username, password, err = getCredentialsFromKeyring(opts.ring)
 		if err == nil {
+			if opts.caller != "" {
+				updateKeychainDescription(opts.ring, username, password, opts.caller)
+			}
 			return username, password, SourceKeyring, nil
+		}
+	} else {
+		// Production path: try OS keyring, skip on open error
+		ring, kerr := openKeyring()
+		if kerr == nil {
+			username, password, err = getCredentialsFromKeyring(ring)
+			if err == nil {
+				if opts.caller != "" {
+					updateKeychainDescription(ring, username, password, opts.caller)
+				}
+				return username, password, SourceKeyring, nil
+			}
+		}
+
+		// Try plaintext file (only in production path)
+		username, password, err = readFileCredentials()
+		if err == nil {
+			return username, password, SourceFile, nil
 		}
 	}
 
-	// 2. Try plaintext file
-	username, password, err = readFileCredentials()
-	if err == nil {
-		return username, password, SourceFile, nil
-	}
-
-	// 3. Fall back to env vars
+	// Fall back to env vars
 	username = os.Getenv("PARKSTER_USERNAME")
 	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {
 		return username, password, SourceEnvironment, nil
 	}
 
-	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+	return "", "", "", errNoCredentials
+}
+
+// GetCredentials retrieves credentials.
+// Priority: OS keyring > plaintext file > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
+func GetCredentials() (username, password string, source CredentialSource, err error) {
+	return getCredentialsInternal(credentialOpts{})
 }
 
 // GetCredentialsWithCaller retrieves credentials and updates the keychain
 // item description with the caller name (for agent identification).
 func GetCredentialsWithCaller(callerName string) (username, password string, source CredentialSource, err error) {
-	// 1. Try OS keyring
-	ring, kerr := openKeyring()
-	if kerr == nil {
-		username, password, err = getCredentialsFromKeyring(ring)
-		if err == nil {
-			if callerName != "" {
-				updateKeychainDescription(ring, username, password, callerName)
-			}
-			return username, password, SourceKeyring, nil
-		}
-	}
+	return getCredentialsInternal(credentialOpts{caller: callerName})
+}
 
-	// 2. Try plaintext file
-	username, password, err = readFileCredentials()
-	if err == nil {
-		return username, password, SourceFile, nil
-	}
-
-	// 3. Fall back to env vars
-	username = os.Getenv("PARKSTER_USERNAME")
-	password = os.Getenv("PARKSTER_PASSWORD")
-	if username != "" && password != "" {
-		return username, password, SourceEnvironment, nil
-	}
-
-	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+// getCredentialsWithKeyring is like GetCredentials but accepts a KeyringStore for testing.
+func getCredentialsWithKeyring(ring KeyringStore) (username, password string, source CredentialSource, err error) {
+	return getCredentialsInternal(credentialOpts{ring: ring})
 }
 
 // getCredentialsWithCallerKeyring is like GetCredentialsWithCaller but accepts a KeyringStore for testing.
 func getCredentialsWithCallerKeyring(ring KeyringStore, callerName string) (username, password string, source CredentialSource, err error) {
-	// 1. Try keyring first
-	username, password, err = getCredentialsFromKeyring(ring)
-	if err == nil {
-		if callerName != "" {
-			updateKeychainDescription(ring, username, password, callerName)
-		}
-		return username, password, SourceKeyring, nil
-	}
-
-	// 2. Fall back to env vars
-	username = os.Getenv("PARKSTER_USERNAME")
-	password = os.Getenv("PARKSTER_PASSWORD")
-	if username != "" && password != "" {
-		return username, password, SourceEnvironment, nil
-	}
-
-	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
+	return getCredentialsInternal(credentialOpts{ring: ring, caller: callerName})
 }
 
 func updateKeychainDescription(ring KeyringStore, username, password, callerName string) {
@@ -211,24 +206,6 @@ func updateKeychainDescription(ring KeyringStore, username, password, callerName
 		Label:       "Parkster Credentials",
 		Description: description,
 	})
-}
-
-// getCredentialsWithKeyring is like GetCredentials but accepts a KeyringStore for testing.
-func getCredentialsWithKeyring(ring KeyringStore) (username, password string, source CredentialSource, err error) {
-	// 1. Try keyring first
-	username, password, err = getCredentialsFromKeyring(ring)
-	if err == nil {
-		return username, password, SourceKeyring, nil
-	}
-
-	// 2. Fall back to env vars
-	username = os.Getenv("PARKSTER_USERNAME")
-	password = os.Getenv("PARKSTER_PASSWORD")
-	if username != "" && password != "" {
-		return username, password, SourceEnvironment, nil
-	}
-
-	return "", "", "", fmt.Errorf("no credentials found (use PARKSTER_USERNAME/PARKSTER_PASSWORD env vars, or 'parkster auth login')")
 }
 
 // getCredentialsFromKeyring reads credentials from the keyring.
