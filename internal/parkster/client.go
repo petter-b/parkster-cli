@@ -146,7 +146,7 @@ func (c *Client) Login() (*User, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("authentication failed (status %d)", resp.StatusCode)
+		return nil, parseErrorResponse(resp, "authentication failed")
 	}
 
 	var user User

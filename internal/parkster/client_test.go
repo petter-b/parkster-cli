@@ -287,6 +287,29 @@ func TestLogin_AuthFailed(t *testing.T) {
 	}
 }
 
+func TestLogin_AuthFailed_WithDisplayMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"errorCode": 26,
+			"data": map[string]any{
+				"displayMessage": "Invalid username or password",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	_, err := client.Login()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "Invalid username or password") {
+		t.Errorf("expected displayMessage in error, got: %v", err)
+	}
+}
+
 func TestGetActiveParkings_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/parkings/short-term" {
