@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/petter-b/parkster-cli/internal/parkster"
@@ -119,7 +118,6 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
 
-	// Validate: --lat and --lon must be used together
 	hasLat := cmd.Flags().Changed("lat")
 	hasLon := cmd.Flags().Changed("lon")
 	if hasLat != hasLon {
@@ -128,33 +126,10 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 
 	client := newAPIClient("", "")
 
-	// If lat/lon provided, try zone code lookup first
-	if lat != 0 && lon != 0 {
-		debugLog("looking up zone code %q near %.6f,%.6f", zoneInput, lat, lon)
-		zone, err := client.GetZoneByCode(zoneInput, lat, lon, 0)
-		if err == nil {
-			debugLog("found zone %d: %s", zone.ID, zone.Name)
-			return printZoneInfo(zone)
-		}
-		debugLog("zone code lookup failed: %v, trying as numeric ID", err)
-	}
-
-	// Fallback: try parsing as numeric zone ID
-	zoneID, parseErr := strconv.Atoi(zoneInput)
-	if parseErr != nil {
-		if lat == 0 && lon == 0 {
-			return fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneInput)
-		}
-		return fmt.Errorf("zone %q not found as code or ID", zoneInput)
-	}
-
-	debugLog("looking up zone by ID %d", zoneID)
-	zone, err := client.GetZone(zoneID)
+	debugLog("looking up zone %q", zoneInput)
+	zone, err := resolveZone(client, zoneInput, lat, lon, 0)
 	if err != nil {
-		if !hasLat {
-			return fmt.Errorf("zone not found: %w\nHint: if %q is a sign code, add --lat and --lon for lookup", err, zoneInput)
-		}
-		return fmt.Errorf("zone not found: %w", err)
+		return err
 	}
 
 	debugLog("found zone %d: %s", zone.ID, zone.Name)
