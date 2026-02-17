@@ -45,7 +45,7 @@ install:
 ## test: Run tests
 test:
 	@echo "Running tests..."
-	$(GOTEST) -v ./...
+	$(GOTEST) -race -v ./...
 
 ## test-interactive: Run interactive tests (requires keychain access)
 test-interactive:
@@ -66,7 +66,7 @@ test-integration:
 ## test-cover: Run tests with coverage
 test-cover:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -v -coverprofile=coverage.out ./...
+	$(GOTEST) -race -v -coverprofile=coverage.out ./...
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
