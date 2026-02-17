@@ -157,26 +157,6 @@ func (c *Client) Login() (*User, error) {
 	return &user, nil
 }
 
-// GetActiveParkings returns all active parking sessions
-func (c *Client) GetActiveParkings() ([]Parking, error) {
-	resp, err := c.get("/parkings/short-term", nil)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != 200 {
-		return nil, parseErrorResponse(resp, "request failed")
-	}
-
-	var parkings []Parking
-	if err := json.NewDecoder(resp.Body).Decode(&parkings); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return parkings, nil
-}
-
 // GetZone fetches zone details including fee zone ID
 func (c *Client) GetZone(zoneID int) (*Zone, error) {
 	path := fmt.Sprintf("/parking-zones/%d", zoneID)

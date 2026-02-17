@@ -41,31 +41,6 @@ func TestIntegration_Login(t *testing.T) {
 		user.ID, user.Email, len(user.Cars), len(user.PaymentAccounts))
 }
 
-func TestIntegration_GetActiveParkings(t *testing.T) {
-	client := integrationClient(t)
-
-	// Login first to get shortTermParkings from profile
-	user, err := client.Login()
-	if err != nil {
-		t.Fatalf("Login failed: %v", err)
-	}
-	t.Logf("Active parkings from login: (user %d has %d cars)", user.ID, len(user.Cars))
-
-	// The dedicated endpoint may return 405 with platform=cli.
-	// This is a known API quirk — the login response includes shortTermParkings instead.
-	parkings, err := client.GetActiveParkings()
-	if err != nil {
-		t.Logf("GetActiveParkings returned error (known API quirk with platform=cli): %v", err)
-		t.Skip("GetActiveParkings endpoint not available with platform=cli")
-	}
-
-	t.Logf("Active parkings: %d", len(parkings))
-	for _, p := range parkings {
-		t.Logf("  Parking %d: zone=%s car=%s",
-			p.ID, p.ParkingZone.Name, p.Car.LicenseNbr)
-	}
-}
-
 func TestIntegration_GetZone_Sweden(t *testing.T) {
 	client := integrationClient(t)
 

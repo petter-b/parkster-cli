@@ -310,50 +310,6 @@ func TestLogin_AuthFailed_WithDisplayMessage(t *testing.T) {
 	}
 }
 
-func TestGetActiveParkings_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/parkings/short-term" {
-			t.Errorf("Expected path /parkings/short-term, got %s", r.URL.Path)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]Parking{
-			{ID: 111, Car: Car{LicenseNbr: "ABC123"}},
-			{ID: 222, Car: Car{LicenseNbr: "DEF456"}},
-		})
-	}))
-	defer server.Close()
-
-	client := newTestClient(server.URL)
-	parkings, err := client.GetActiveParkings()
-	if err != nil {
-		t.Fatalf("GetActiveParkings failed: %v", err)
-	}
-	if len(parkings) != 2 {
-		t.Fatalf("Expected 2 parkings, got %d", len(parkings))
-	}
-	if parkings[0].ID != 111 {
-		t.Errorf("Expected first parking ID 111, got %d", parkings[0].ID)
-	}
-}
-
-func TestGetActiveParkings_Empty(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]Parking{})
-	}))
-	defer server.Close()
-
-	client := newTestClient(server.URL)
-	parkings, err := client.GetActiveParkings()
-	if err != nil {
-		t.Fatalf("GetActiveParkings failed: %v", err)
-	}
-	if len(parkings) != 0 {
-		t.Errorf("Expected 0 parkings, got %d", len(parkings))
-	}
-}
-
 func TestGetZone_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/parking-zones/17429" {
