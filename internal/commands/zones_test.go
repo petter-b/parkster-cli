@@ -550,3 +550,37 @@ func TestZonesInfo_NotFound_JSON_ErrorEnvelope(t *testing.T) {
 		t.Error("expected success=false")
 	}
 }
+
+// --- zones info: too many positional args ---
+
+func TestZonesInfo_TooManyArgs_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "info", "80500", "extra")
+	if err == nil {
+		t.Fatal("expected error for too many positional args, got nil")
+	}
+	if !strings.Contains(err.Error(), "accepts 1 arg(s), received 2") {
+		t.Errorf("expected ExactArgs error, got: %v", err)
+	}
+}
+
+// --- zones search: individual required flag tests ---
+
+func TestZonesSearch_LatOnly_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "search", "--lat", "59.373")
+	if err == nil {
+		t.Fatal("expected error for --lat without --lon, got nil")
+	}
+	if !strings.Contains(err.Error(), `"lon"`) {
+		t.Errorf("expected error about missing --lon, got: %v", err)
+	}
+}
+
+func TestZonesSearch_LonOnly_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "search", "--lon", "17.893")
+	if err == nil {
+		t.Fatal("expected error for --lon without --lat, got nil")
+	}
+	if !strings.Contains(err.Error(), `"lat"`) {
+		t.Errorf("expected error about missing --lat, got: %v", err)
+	}
+}
