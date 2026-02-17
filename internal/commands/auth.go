@@ -23,6 +23,12 @@ Credentials are stored using (in order of preference):
 - Plaintext file (~/.config/parkster/credentials.json)
 
 Environment variables (PARKSTER_USERNAME/PARKSTER_PASSWORD) are used as a last resort.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return fmt.Errorf("unknown subcommand %q for %q", args[0], cmd.Name())
+	},
 }
 
 var authAddCmd = &cobra.Command{

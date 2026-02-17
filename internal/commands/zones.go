@@ -13,6 +13,12 @@ var zonesCmd = &cobra.Command{
 	Use:   "zones",
 	Short: "Manage parking zones",
 	Long:  "Search for and view parking zone information.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return fmt.Errorf("unknown subcommand %q for %q", args[0], cmd.Name())
+	},
 }
 
 var zonesSearchCmd = &cobra.Command{
