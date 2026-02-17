@@ -14,6 +14,9 @@ const serviceName = "parkster"
 // ErrNoCredentials indicates no credentials were found to delete.
 var ErrNoCredentials = fmt.Errorf("no credentials stored")
 
+// openKeyring opens the OS keyring. Replaced in tests to simulate unavailable keyring.
+var openKeyring = OpenKeyring
+
 // CredentialSource indicates where credentials were found.
 type CredentialSource string
 
@@ -38,25 +41,14 @@ type KeyringStore interface {
 
 // OpenKeyring opens the OS keychain
 func OpenKeyring() (keyring.Keyring, error) {
-	// Determine file backend path for headless Linux
-	fileDir := filepath.Join(configDir(), "credentials")
-
 	ring, err := keyring.Open(keyring.Config{
 		ServiceName: serviceName,
 
 		// macOS - trust this app so reads don't prompt
 		KeychainTrustApplication: true,
 
-		// Linux - prefer secret service, fall back to encrypted file
-		FileDir: fileDir,
-		FilePasswordFunc: func(prompt string) (string, error) {
-			fmt.Fprintf(os.Stderr, "%s: ", prompt)
-			var password string
-			_, err := fmt.Scanln(&password)
-			return password, err
-		},
-
-		// Windows - uses Credential Manager automatically
+		// No FileDir/FilePasswordFunc — we handle file storage ourselves
+		// to avoid passphrase prompts on headless Linux.
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open keyring: %w", err)
@@ -133,7 +125,7 @@ func deleteFileCredentials() error {
 // Priority: keyring > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
 func GetCredentials() (username, password string, source CredentialSource, err error) {
 	// 1. Try keyring first
-	ring, kerr := OpenKeyring()
+	ring, kerr := openKeyring()
 	if kerr == nil {
 		username, password, err = getCredentialsFromKeyring(ring)
 		if err == nil {
@@ -155,7 +147,7 @@ func GetCredentials() (username, password string, source CredentialSource, err e
 // item description with the caller name (for agent identification).
 func GetCredentialsWithCaller(callerName string) (username, password string, source CredentialSource, err error) {
 	// 1. Try keyring first
-	ring, kerr := OpenKeyring()
+	ring, kerr := openKeyring()
 	if kerr == nil {
 		username, password, err = getCredentialsFromKeyring(ring)
 		if err == nil {
@@ -246,7 +238,7 @@ func getCredentialsFromKeyring(ring KeyringStore) (string, string, error) {
 
 // SaveCredentials stores username and password as a single JSON item in keyring
 func SaveCredentials(username, password string) error {
-	ring, err := OpenKeyring()
+	ring, err := openKeyring()
 	if err != nil {
 		return fmt.Errorf("failed to open keyring: %w", err)
 	}
@@ -270,7 +262,7 @@ func saveCredentialsTo(ring KeyringStore, username, password string) error {
 
 // DeleteCredentials removes credentials from keyring
 func DeleteCredentials() error {
-	ring, err := OpenKeyring()
+	ring, err := openKeyring()
 	if err != nil {
 		return fmt.Errorf("failed to open keyring: %w", err)
 	}
