@@ -4549,3 +4549,94 @@ func TestStart_NumericZone_NoLatLon_HintsAboutCoordinates(t *testing.T) {
 		t.Errorf("expected hint about --lat/--lon in error, got: %v", err)
 	}
 }
+
+// --- resolveZone unit tests ---
+
+func TestResolveZone_ByNumericID_Success(t *testing.T) {
+	mock := &mockAPI{
+		getZoneResp: &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
+	}
+
+	zone, err := resolveZone(mock, "17429", 0, 0, 0)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if zone.ID != 17429 {
+		t.Errorf("expected zone ID 17429, got %d", zone.ID)
+	}
+}
+
+func TestResolveZone_ByCode_WithLatLon_Success(t *testing.T) {
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
+	}
+
+	zone, err := resolveZone(mock, "80500", 59.373, 17.893, 500)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if zone.ZoneCode != "80500" {
+		t.Errorf("expected zone code 80500, got %s", zone.ZoneCode)
+	}
+}
+
+func TestResolveZone_ByCode_WithoutLatLon_ErrorHints(t *testing.T) {
+	mock := &mockAPI{
+		getZoneErr: fmt.Errorf("Parking zone not found."),
+	}
+
+	// Non-numeric input without lat/lon should hint about --lat/--lon
+	_, err := resolveZone(mock, "ABC80500", 0, 0, 0)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--lat") || !strings.Contains(err.Error(), "--lon") {
+		t.Errorf("expected hint about --lat/--lon, got: %v", err)
+	}
+}
+
+func TestResolveZone_NumericID_NotFound_WithoutLatLon_Hints(t *testing.T) {
+	mock := &mockAPI{
+		getZoneErr: fmt.Errorf("Parking zone not found."),
+	}
+
+	_, err := resolveZone(mock, "80500", 0, 0, 0)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--lat") || !strings.Contains(err.Error(), "--lon") {
+		t.Errorf("expected hint about --lat/--lon, got: %v", err)
+	}
+}
+
+func TestResolveZone_NumericID_NotFound_WithLatLon_NoHint(t *testing.T) {
+	mock := &mockAPI{
+		getZoneByCodeErr: fmt.Errorf("not found as code"),
+		getZoneErr:       fmt.Errorf("Parking zone not found."),
+	}
+
+	_, err := resolveZone(mock, "99999", 59.373, 17.893, 500)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// Should NOT suggest --lat/--lon since they were already provided
+	if strings.Contains(err.Error(), "--lat") {
+		t.Errorf("should not hint about --lat/--lon when they're already provided, got: %v", err)
+	}
+}
+
+func TestResolveZone_CodeFallsBackToID(t *testing.T) {
+	// Zone code lookup fails, but the input also parses as a numeric ID
+	mock := &mockAPI{
+		getZoneByCodeErr: fmt.Errorf("code not found"),
+		getZoneResp:      &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
+	}
+
+	zone, err := resolveZone(mock, "17429", 59.373, 17.893, 500)
+	if err != nil {
+		t.Fatalf("expected fallback to numeric ID, got: %v", err)
+	}
+	if zone.ID != 17429 {
+		t.Errorf("expected zone ID 17429, got %d", zone.ID)
+	}
+}
