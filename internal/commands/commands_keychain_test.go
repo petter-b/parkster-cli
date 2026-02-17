@@ -15,6 +15,9 @@ import (
 // through the full auth login → status → logout → status cycle.
 // The API client is mocked since we only test keychain storage here.
 func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
+	// Isolate file storage so file-fallback never touches the real config dir.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
 	// Ensure real auth functions are used (not test swaps)
 	origGet := getCredentials
 	origSave := saveCredentials
@@ -34,17 +37,19 @@ func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	// Save test credentials — skip if keychain access is denied or unavailable
+	// Save test credentials — skip if keychain access is denied or unavailable.
+	// Register cleanup BEFORE skip checks so credentials are always removed,
+	// even when the test skips (e.g. file-fallback in keyring-less environments).
 	source, err := saveCredentials("interactive-test@example.com", "test-password")
+	t.Cleanup(func() {
+		_ = deleteCredentials()
+	})
 	if err != nil {
 		t.Skipf("keychain write denied or unavailable: %v", err)
 	}
 	if source != auth.SourceKeyring {
 		t.Skipf("keychain not available, credentials stored via %s", source)
 	}
-	t.Cleanup(func() {
-		_ = deleteCredentials()
-	})
 
 	// Verify keychain read also works — skip if read access is denied
 	// (macOS may prompt for keychain access that can't be answered in tests)
