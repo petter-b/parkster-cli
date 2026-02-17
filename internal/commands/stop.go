@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/petter-b/parkster-cli/internal/output"
 	"github.com/spf13/cobra"
@@ -28,59 +27,17 @@ func init() {
 func runStop(cmd *cobra.Command, args []string) error {
 	parkingIDFlag, _ := cmd.Flags().GetInt("parking-id")
 
-	username, password, _, err := getCredentials()
+	selected, client, err := selectParking(parkingIDFlag)
 	if err != nil {
-		return authRequiredError()
+		return err
+	}
+	if selected == nil {
+		return nil // no active parkings (already handled)
 	}
 
-	client := newAPIClient(username, password)
+	debugLog("stopping parking session %d", selected.ID)
 
-	debugLog("fetching active parkings")
-
-	user, err := client.Login()
-	if err != nil {
-		return fmt.Errorf("failed to authenticate: %w", err)
-	}
-
-	parkings := user.ShortTermParkings
-
-	debugLog("found %d active parkings", len(parkings))
-
-	var parkingID int
-	if parkingIDFlag != 0 {
-		parkingID = parkingIDFlag
-		found := false
-		for _, p := range parkings {
-			if p.ID == parkingID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("parking session not found: %d", parkingID)
-		}
-	} else if len(parkings) == 0 {
-		if OutputMode() == output.ModeJSON {
-			return output.PrintSuccess([]any{}, OutputMode())
-		}
-		statusMsg("No active parkings")
-		return nil
-	} else if len(parkings) == 1 {
-		parkingID = parkings[0].ID
-	} else {
-		msg := "multiple active parkings found, use --parking-id flag to specify"
-		if OutputMode() != output.ModeHuman {
-			fmt.Fprintln(os.Stderr, output.FormatParkingList(parkings))
-			output.PrintError(msg, OutputMode())
-			return errSilent
-		}
-		fmt.Println(output.FormatParkingList(parkings))
-		return fmt.Errorf("%s", msg)
-	}
-
-	debugLog("stopping parking session %d", parkingID)
-
-	parking, err := client.StopParking(parkingID)
+	parking, err := client.StopParking(selected.ID)
 	if err != nil {
 		return fmt.Errorf("failed to stop parking: %w", err)
 	}

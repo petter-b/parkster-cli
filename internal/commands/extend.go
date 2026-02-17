@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"time"
 
@@ -88,56 +87,13 @@ func runChange(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	username, password, _, err := getCredentials()
+	selected, client, err := selectParking(parkingIDFlag)
 	if err != nil {
-		return authRequiredError()
+		return err
 	}
-
-	client := newAPIClient(username, password)
-
-	user, err := client.Login()
-	if err != nil {
-		return fmt.Errorf("failed to authenticate: %w", err)
+	if selected == nil {
+		return nil // no active parkings (already handled)
 	}
-
-	parkings := user.ShortTermParkings
-
-	if len(parkings) == 0 {
-		if OutputMode() == output.ModeJSON {
-			return output.PrintSuccess([]any{}, OutputMode())
-		}
-		statusMsg("No active parkings")
-		return nil
-	}
-
-	// Select parking
-	var parkingIdx int
-	if parkingIDFlag != 0 {
-		found := false
-		for i, p := range parkings {
-			if p.ID == parkingIDFlag {
-				parkingIdx = i
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("parking session not found: %d", parkingIDFlag)
-		}
-	} else if len(parkings) == 1 {
-		parkingIdx = 0
-	} else {
-		msg := "multiple active parkings found, use --parking-id flag to specify"
-		if OutputMode() != output.ModeHuman {
-			fmt.Fprintln(os.Stderr, output.FormatParkingList(parkings))
-			output.PrintError(msg, OutputMode())
-			return errSilent
-		}
-		fmt.Println(output.FormatParkingList(parkings))
-		return fmt.Errorf("%s", msg)
-	}
-
-	selected := parkings[parkingIdx]
 
 	// Compute offset in minutes: total duration from parking start to desired end
 	startTime := time.UnixMilli(selected.CheckInTime)
@@ -162,6 +118,6 @@ func runChange(cmd *cobra.Command, args []string) error {
 		return output.PrintSuccess(selected, mode)
 	}
 	statusMsg("Parking changed")
-	fmt.Println(output.FormatParkingChanged(selected))
+	fmt.Println(output.FormatParkingChanged(*selected))
 	return nil
 }
