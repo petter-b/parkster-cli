@@ -4215,3 +4215,112 @@ func TestZonesSearch_Quiet_HasResults(t *testing.T) {
 		t.Errorf("--quiet should suppress status messages on stderr, got: %q", stderr)
 	}
 }
+
+// --- Audit-discovered tests (2026-02-17) ---
+// These tests document behavior found during the CLI command audit.
+// See docs/plans/2026-02-17-cli-command-audit.md for full audit report.
+
+// G1: Unknown auth subcommand shows help (Cobra default: exit 0)
+func TestAuth_UnknownSubcommand_ShowsHelp(t *testing.T) {
+	stdout, _, err := executeCommand("auth", "foobar")
+	// Cobra shows help for unknown subcommands on parent commands without RunE.
+	// Currently exits 0. Test documents this behavior.
+	if err != nil {
+		t.Skipf("auth unknown subcommand now returns error (fixed): %v", err)
+	}
+	if !strings.Contains(stdout, "Available Commands") {
+		t.Errorf("expected help text for unknown auth subcommand, got: %q", stdout)
+	}
+}
+
+// G2: Unknown zones subcommand shows help (Cobra default: exit 0)
+func TestZones_UnknownSubcommand_ShowsHelp(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "foobar")
+	if err != nil {
+		t.Skipf("zones unknown subcommand now returns error (fixed): %v", err)
+	}
+	if !strings.Contains(stdout, "Available Commands") {
+		t.Errorf("expected help text for unknown zones subcommand, got: %q", stdout)
+	}
+}
+
+// G5: JSON + quiet already covered by TestVersion_JSON_Quiet (line 4179)
+
+// G6: Debug + JSON sends debug to stderr and JSON to stdout
+func TestVersion_Debug_JSON_SeparateStreams(t *testing.T) {
+	stdout, stderr, err := executeCommand("version", "--debug", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// JSON on stdout
+	var envelope map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON on stdout, got: %s", stdout)
+	}
+	// Debug on stderr
+	if !strings.Contains(stderr, "DEBUG") {
+		t.Errorf("expected DEBUG output on stderr, got: %q", stderr)
+	}
+}
+
+// G7: Negative parking-id is accepted by flag parser but rejected as not found
+func TestStop_NegativeParkingID_Error(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 100, ParkingZone: parkster.Zone{Name: "Test"}},
+				{ID: 200, ParkingZone: parkster.Zone{Name: "Other"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop", "--parking-id", "-1")
+	if err == nil {
+		t.Error("expected error for negative parking ID")
+	}
+}
+
+// G3: Extra positional args on version are silently ignored
+func TestVersion_ExtraArgs_Ignored(t *testing.T) {
+	stdout, _, err := executeCommand("version", "extra", "args")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "parkster") {
+		t.Error("expected version output despite extra args")
+	}
+}
+
+// Flag validation: start --zone accepts non-numeric zone codes
+func TestStart_ZoneCode_NonNumeric_Accepted(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			Cars:            []parkster.Car{{ID: 1, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{ID: 100, FeeZone: parkster.FeeZone{ID: 200}},
+		startParkingResp:  &parkster.Parking{ID: 999, ParkingZone: parkster.Zone{Name: "Test"}},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "ABC123", "--duration", "30", "--lat", "59.0", "--lon", "17.0")
+	if err != nil {
+		t.Fatalf("expected non-numeric zone code to be accepted, got error: %v", err)
+	}
+}
+
+// Error JSON envelope: zones search missing flags with --json
+func TestZonesSearch_MissingFlags_JSON_Error(t *testing.T) {
+	stdout, _, _ := executeCommandFull("zones", "search", "--json")
+	var envelope map[string]interface{}
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON error envelope, got: %s", stdout)
+	}
+	if envelope["success"] != false {
+		t.Errorf("expected success=false, got %v", envelope["success"])
+	}
+}
