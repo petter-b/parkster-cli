@@ -1,7 +1,6 @@
 package parkster
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -74,8 +73,7 @@ func (c *Client) get(path string, extraParams url.Values) (*http.Response, error
 	}
 
 	if c.username != "" {
-		auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
-		req.Header.Set("Authorization", "Basic "+auth)
+		req.SetBasicAuth(c.username, c.password)
 	}
 	req.Header.Set("Accept", "application/json")
 
@@ -100,8 +98,7 @@ func (c *Client) post(path string, data url.Values) (*http.Response, error) {
 	}
 
 	if c.username != "" {
-		auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
-		req.Header.Set("Authorization", "Basic "+auth)
+		req.SetBasicAuth(c.username, c.password)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -126,8 +123,7 @@ func (c *Client) put(path string, data url.Values) (*http.Response, error) {
 	}
 
 	if c.username != "" {
-		auth := base64.StdEncoding.EncodeToString([]byte(c.username + ":" + c.password))
-		req.Header.Set("Authorization", "Basic "+auth)
+		req.SetBasicAuth(c.username, c.password)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
