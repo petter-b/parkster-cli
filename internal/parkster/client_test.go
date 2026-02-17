@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewClient(t *testing.T) {
@@ -220,6 +221,7 @@ func TestPut_FormEncoded(t *testing.T) {
 func newTestClient(serverURL string) *Client {
 	client := NewClient("test@example.com", "password123")
 	client.baseURL = serverURL
+	client.retryBaseBackoff = 1 * time.Millisecond // fast retries in tests
 	return client
 }
 

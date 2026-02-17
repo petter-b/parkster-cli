@@ -26,10 +26,17 @@ type API interface {
 
 // Client is the Parkster API client
 type Client struct {
-	http     *http.Client
-	baseURL  string
-	username string
-	password string
+	http             *http.Client
+	baseURL          string
+	username         string
+	password         string
+	onRetry          func(attempt int, backoff time.Duration)
+	retryBaseBackoff time.Duration
+}
+
+// OnRetry sets a callback invoked before each retry attempt.
+func (c *Client) OnRetry(fn func(attempt int, backoff time.Duration)) {
+	c.onRetry = fn
 }
 
 // NewClient creates a new Parkster API client
@@ -72,7 +79,7 @@ func (c *Client) get(path string, extraParams url.Values) (*http.Response, error
 	}
 	req.Header.Set("Accept", "application/json")
 
-	return c.http.Do(req)
+	return c.doWithRetry(req)
 }
 
 // post makes a POST request with device params in form body
