@@ -25,7 +25,7 @@ func resetFlags() {
 	debug = false
 	jsonFlag = false
 	quietFlag = false
-	detectedCaller = caller.Info{} // reset caller detection
+	detectedCaller = caller.Info{}            // reset caller detection
 	isStderrTTY = func() bool { return true } // pipes aren't TTYs; override for test capture
 	isStdinTTY = func() bool { return true }  // default to TTY for tests
 	resetCommandFlags(rootCmd)
@@ -251,12 +251,15 @@ func TestOutputMode_JSON(t *testing.T) {
 // --- Mock API client ---
 
 type mockAPI struct {
-	loginResp         *parkster.User
-	loginErr          error
-	getZoneResp       *parkster.Zone
-	getZoneErr        error
-	startParkingResp  *parkster.Parking
-	startParkingErr   error
+	loginResp        *parkster.User
+	loginErr         error
+	getZoneResp      *parkster.Zone
+	getZoneErr       error
+	startParkingResp *parkster.Parking
+	startParkingErr  error
+	// Captured arguments for verification
+	extendParkingID   int
+	extendMinutes     int
 	stopParkingResp   *parkster.Parking
 	stopParkingErr    error
 	extendResp        *parkster.Parking
@@ -288,7 +291,9 @@ func (m *mockAPI) StopParking(_ int) (*parkster.Parking, error) {
 	return m.stopParkingResp, m.stopParkingErr
 }
 
-func (m *mockAPI) ExtendParking(_, _ int) (*parkster.Parking, error) {
+func (m *mockAPI) ExtendParking(parkingID, minutes int) (*parkster.Parking, error) {
+	m.extendParkingID = parkingID
+	m.extendMinutes = minutes
 	return m.extendResp, m.extendErr
 }
 
@@ -3350,7 +3355,7 @@ func TestQuiet_SuppressesParkingStarted(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Test Zone", FeeZone: parkster.FeeZone{ID: 27545}},
+		getZoneResp:      &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Test Zone", FeeZone: parkster.FeeZone{ID: 27545}},
 		startParkingResp: &parkster.Parking{ID: 999, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, Cost: 0},
 	}
 	withMockClient(t, mock)
@@ -3519,5 +3524,334 @@ func TestIsStdinTTY_Overridable(t *testing.T) {
 	isStdinTTY = func() bool { return true }
 	if !isStdinTTY() {
 		t.Error("expected isStdinTTY override to return true")
+	}
+}
+
+// --- Bug regression: change command offset calculation ---
+
+// TestChange_Duration_CorrectOffset verifies that `change --duration N` computes
+// the offset as total minutes from parking start to desired end time,
+// not as the difference between desired end and current end.
+func TestChange_Duration_CorrectOffset(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	checkIn := now.Add(-60 * time.Minute)    // started 60 min ago
+	currentEnd := now.Add(120 * time.Minute) // ends in 120 min (180 min total)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					CheckInTime: checkIn.UnixMilli(),
+					TimeoutTime: currentEnd.UnixMilli(),
+				},
+			},
+		},
+		extendResp: &parkster.Parking{
+			ID:          500,
+			TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+		},
+	}
+	withMockClient(t, mock)
+
+	// "change --duration 30" means end 30 min from now.
+	// Parking started 60 min ago, so total duration = 60 + 30 = 90 min.
+	// The API offset should be 90 (total minutes from start), not -90 (desired - current end).
+	_, _, err := executeCommand("change", "--duration", "30")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	// The offset sent to the API should represent total duration from start to desired end.
+	// Expected: ~90 minutes (60 min elapsed + 30 min from now)
+	// BUG: current code sends desiredEnd - currentEnd = (now+30) - (now+120) = -90
+	expectedOffset := 90
+	tolerance := 2 // allow 2 min clock drift
+	if mock.extendMinutes < expectedOffset-tolerance || mock.extendMinutes > expectedOffset+tolerance {
+		t.Errorf("expected offset ~%d minutes (total from start), got %d (current code computes desiredEnd - currentEnd)", expectedOffset, mock.extendMinutes)
+	}
+}
+
+// TestChange_Until_CorrectOffset verifies that `change --until HH:MM` sends
+// the right offset to the API (total minutes from parking start to target time).
+func TestChange_Until_CorrectOffset(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+	checkIn := now.Add(-30 * time.Minute)   // started 30 min ago
+	currentEnd := now.Add(90 * time.Minute) // currently ends in 90 min (120 min total)
+
+	// Target: 60 minutes from now => total duration = 30 + 60 = 90 min
+	target := now.Add(60 * time.Minute)
+	untilStr := target.Format("15:04")
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          500,
+					CheckInTime: checkIn.UnixMilli(),
+					TimeoutTime: currentEnd.UnixMilli(),
+				},
+			},
+		},
+		extendResp: &parkster.Parking{
+			ID:          500,
+			TimeoutTime: target.UnixMilli(),
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--until", untilStr)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	// Expected offset: total minutes from parking start to target time = 90 min
+	// BUG: current code sends desiredEnd - currentEnd = (now+60) - (now+90) = -30
+	expectedOffset := 90
+	tolerance := 2
+	if mock.extendMinutes < expectedOffset-tolerance || mock.extendMinutes > expectedOffset+tolerance {
+		t.Errorf("expected offset ~%d minutes (total from start), got %d", expectedOffset, mock.extendMinutes)
+	}
+}
+
+// --- Bug regression: disambiguation list contaminates JSON output ---
+
+// TestStart_MultipleCars_JSON_OutputIsValidJSON verifies that when multiple cars
+// exist and --json is set, the stdout output is valid JSON (no car list preamble).
+func TestStart_MultipleCars_JSON_OutputIsValidJSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+				{ID: 101, LicenseNbr: "UPC304", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("start", "--zone", "17429", "--duration", "30", "--json")
+
+	// stdout should be ONLY valid JSON - no car list contamination
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("stdout should be valid JSON, got parse error: %v\nstdout was:\n%s", err, stdout)
+	}
+}
+
+// TestStart_MultiplePayments_JSON_OutputIsValidJSON verifies payment disambiguation
+// does not contaminate JSON output.
+func TestStart_MultiplePayments_JSON_OutputIsValidJSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "PRIVATE:9999999"},
+				{PaymentAccountID: "AT_WORK:72624"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("start", "--zone", "17429", "--duration", "30", "--json")
+
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("stdout should be valid JSON, got parse error: %v\nstdout was:\n%s", err, stdout)
+	}
+}
+
+// TestStop_MultipleParkings_JSON_OutputIsValidJSON verifies parking disambiguation
+// does not contaminate JSON output.
+func TestStop_MultipleParkings_JSON_OutputIsValidJSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500"}},
+				{ID: 501, ParkingZone: parkster.Zone{ZoneCode: "17429"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("stop", "--json")
+
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("stdout should be valid JSON, got parse error: %v\nstdout was:\n%s", err, stdout)
+	}
+}
+
+// TestChange_MultipleParkings_JSON_OutputIsValidJSON verifies parking disambiguation
+// does not contaminate JSON output for the change command.
+func TestChange_MultipleParkings_JSON_OutputIsValidJSON(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500"}},
+				{ID: 501, ParkingZone: parkster.Zone{ZoneCode: "17429"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, _ := executeCommand("change", "--duration", "30", "--json")
+
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("stdout should be valid JSON, got parse error: %v\nstdout was:\n%s", err, stdout)
+	}
+}
+
+// --- Edge case: start --radius help text vs actual default ---
+
+func TestStart_RadiusDefault_IsZero(t *testing.T) {
+	// Verify that the radius flag defaults to 0 (API decides default),
+	// matching the behavior of zones search
+	resetFlags()
+	f := startCmd.Flags().Lookup("radius")
+	if f == nil {
+		t.Fatal("expected radius flag on start command")
+	}
+	if f.DefValue != "0" {
+		t.Errorf("radius default should be 0, got %q", f.DefValue)
+	}
+}
+
+// --- Edge case: zones info with lat only or lon only ---
+
+func TestZonesInfo_LatOnly_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "info", "80500", "--lat", "59.3")
+	if err == nil {
+		t.Fatal("expected error for --lat without --lon")
+	}
+	if !strings.Contains(err.Error(), "--lat and --lon must be used together") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestZonesInfo_LonOnly_Error(t *testing.T) {
+	_, _, err := executeCommand("zones", "info", "80500", "--lon", "17.9")
+	if err == nil {
+		t.Fatal("expected error for --lon without --lat")
+	}
+	if !strings.Contains(err.Error(), "--lat and --lon must be used together") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- Edge case: change --until with past time ---
+
+func TestChange_UntilInPast_NoAuthNeeded(t *testing.T) {
+	// The past-time check should happen before authentication
+	env_u := os.Getenv("PARKSTER_USERNAME")
+	env_p := os.Getenv("PARKSTER_PASSWORD")
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+	t.Cleanup(func() {
+		_ = os.Setenv("PARKSTER_USERNAME", env_u)
+		_ = os.Setenv("PARKSTER_PASSWORD", env_p)
+	})
+
+	_, _, err := executeCommand("change", "--until", "00:01")
+	if err == nil {
+		t.Fatal("expected error for past time")
+	}
+	// Should be a time error, not an auth error
+	if strings.Contains(err.Error(), "authenticated") {
+		t.Errorf("expected time validation error before auth, got: %v", err)
+	}
+}
+
+// --- Edge case: status --quiet with no active parkings ---
+
+func TestStatus_Quiet_NoParkings_NoOutput(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("status", "--quiet")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if stdout != "" {
+		t.Errorf("expected no stdout, got: %q", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("expected no stderr with --quiet, got: %q", stderr)
+	}
+}
+
+// --- Edge case: stop --quiet with no active parkings ---
+
+func TestStop_Quiet_NoParkings_NoOutput(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("stop", "--quiet")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if stdout != "" {
+		t.Errorf("expected no stdout, got: %q", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("expected no stderr with --quiet, got: %q", stderr)
+	}
+}
+
+// --- Edge case: change --quiet with no active parkings ---
+
+func TestChange_Quiet_NoParkings_NoOutput(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("change", "--duration", "30", "--quiet")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if stdout != "" {
+		t.Errorf("expected no stdout, got: %q", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("expected no stderr with --quiet, got: %q", stderr)
 	}
 }

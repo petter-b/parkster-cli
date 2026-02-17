@@ -130,11 +130,11 @@ func runChange(cmd *cobra.Command, args []string) error {
 
 	selected := parkings[parkingIdx]
 
-	// Compute offset in minutes: desired_end - current_end
-	currentEnd := time.UnixMilli(selected.TimeoutTime)
-	offsetMinutes := int(desiredEnd.Sub(currentEnd).Minutes())
+	// Compute offset in minutes: total duration from parking start to desired end
+	startTime := time.UnixMilli(selected.CheckInTime)
+	offsetMinutes := int(desiredEnd.Sub(startTime).Minutes())
 
-	debugLog("changing parking %d end time by %d minutes", selected.ID, offsetMinutes)
+	debugLog("changing parking %d total duration to %d minutes", selected.ID, offsetMinutes)
 
 	parking, err := client.ExtendParking(selected.ID, offsetMinutes)
 	if err != nil {

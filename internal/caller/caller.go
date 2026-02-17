@@ -14,7 +14,7 @@ var skipNames = map[string]bool{
 	"go": true, "zsh": true, "bash": true, "sh": true,
 	"-zsh": true, "-bash": true, "-sh": true, // login shells (prefixed with -)
 	"login": true,
-	"node": true, // often just a wrapper
+	"node":  true, // often just a wrapper
 }
 
 // Info holds information about the calling process.
