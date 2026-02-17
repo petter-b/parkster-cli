@@ -2190,6 +2190,83 @@ func TestParseUntil_MidnightFormats(t *testing.T) {
 	}
 }
 
+// --- parseUntil edge case tests ---
+
+func TestParseUntil_HH_MM_Format(t *testing.T) {
+	result, err := parseUntil("14:30")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if result.Hour() != 14 || result.Minute() != 30 {
+		t.Errorf("expected 14:30, got %02d:%02d", result.Hour(), result.Minute())
+	}
+}
+
+func TestParseUntil_Dot_Format(t *testing.T) {
+	result, err := parseUntil("14.30")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if result.Hour() != 14 || result.Minute() != 30 {
+		t.Errorf("expected 14:30, got %02d:%02d", result.Hour(), result.Minute())
+	}
+}
+
+func TestParseUntil_SingleDigitHour(t *testing.T) {
+	result, err := parseUntil("9")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if result.Hour() != 9 {
+		t.Errorf("expected 09:00, got %02d:%02d", result.Hour(), result.Minute())
+	}
+}
+
+func TestParseUntil_InvalidHour_25(t *testing.T) {
+	_, err := parseUntil("25:00")
+	if err == nil {
+		t.Error("expected error for hour 25")
+	}
+}
+
+func TestParseUntil_InvalidFormat_Letters(t *testing.T) {
+	_, err := parseUntil("abc")
+	if err == nil {
+		t.Error("expected error for non-numeric input")
+	}
+	if !strings.Contains(err.Error(), "invalid time format") {
+		t.Errorf("expected 'invalid time format' in error, got: %v", err)
+	}
+}
+
+func TestParseUntil_EmptyString(t *testing.T) {
+	_, err := parseUntil("")
+	if err == nil {
+		t.Error("expected error for empty string")
+	}
+}
+
+func TestParseUntil_LeadingZero(t *testing.T) {
+	result, err := parseUntil("08:05")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if result.Hour() != 8 || result.Minute() != 5 {
+		t.Errorf("expected 08:05, got %02d:%02d", result.Hour(), result.Minute())
+	}
+}
+
+func TestParseUntil_ResultIsToday(t *testing.T) {
+	result, err := parseUntil("15:00")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	now := time.Now()
+	if result.Year() != now.Year() || result.Month() != now.Month() || result.Day() != now.Day() {
+		t.Errorf("expected today's date, got %v", result)
+	}
+}
+
 // --- Duration validation tests ---
 
 func TestStart_ZeroDuration_Error(t *testing.T) {
