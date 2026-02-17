@@ -4350,3 +4350,66 @@ func TestAuth_EnvParksterEmail_NotRecognized(t *testing.T) {
 		t.Error("PARKSTER_EMAIL should not be recognized; only PARKSTER_USERNAME works")
 	}
 }
+
+// TestChange_Until_RoundsUp verifies that `change --until` rounds the offset
+// minutes instead of truncating. Without rounding, a fractional minute > 0.5
+// gets floored, causing the parking to end 1 minute earlier than requested.
+func TestChange_Until_RoundsUp(t *testing.T) {
+	setAuth(t)
+
+	now := time.Now()
+
+	// Build a target time 30 minutes from now (as HH:MM, seconds stripped by parseUntil).
+	// parseUntil always returns seconds=0, so desiredEnd has 0 seconds.
+	targetRaw := now.Add(30 * time.Minute)
+	untilStr := targetRaw.Format("15:04")
+	// parseUntil will produce: today at HH:MM:00
+	desiredEnd := time.Date(now.Year(), now.Month(), now.Day(),
+		targetRaw.Hour(), targetRaw.Minute(), 0, 0, now.Location())
+
+	// Set startTime so that its seconds component is 50.
+	// desiredEnd has 0 seconds, so:
+	//   desiredEnd - startTime seconds part = 60 - 50 = 10 seconds? No:
+	// Actually, if startTime seconds = 50 and desiredEnd seconds = 0,
+	// the sub is (desiredEnd - startTime). Let's make the total gap
+	// be N minutes and 50 seconds, so we need:
+	//   desiredEnd - startTime = Xm 50s
+	// That means fractional = 50/60 = 0.833, int() = X, round() = X+1
+	//
+	// Set startTime = desiredEnd - 60m50s so gap = 60.833... min
+	// int() => 60, math.Round() => 61
+	startTime := desiredEnd.Add(-60*time.Minute - 50*time.Second)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{
+					ID:          100,
+					CheckInTime: startTime.UnixMilli(),
+					TimeoutTime: now.Add(30 * time.Minute).UnixMilli(),
+					ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Test"},
+					Car:         parkster.Car{LicenseNbr: "ABC123"},
+					Currency:    parkster.Currency{Code: "SEK"},
+				},
+			},
+		},
+		extendResp: &parkster.Parking{
+			TimeoutTime: desiredEnd.UnixMilli(),
+			Cost:        5.0,
+			Currency:    parkster.Currency{Code: "SEK"},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--until", untilStr)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	// The offset should be rounded, not truncated.
+	// 60m50s => 60.833... minutes => round => 61, truncate => 60
+	if mock.extendMinutes != 61 {
+		t.Errorf("expected offset 61 minutes (rounded), got %d", mock.extendMinutes)
+	}
+}
