@@ -122,9 +122,9 @@ func deleteFileCredentials() error {
 }
 
 // GetCredentials retrieves credentials.
-// Priority: keyring > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
+// Priority: OS keyring > plaintext file > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
 func GetCredentials() (username, password string, source CredentialSource, err error) {
-	// 1. Try keyring first
+	// 1. Try OS keyring
 	ring, kerr := openKeyring()
 	if kerr == nil {
 		username, password, err = getCredentialsFromKeyring(ring)
@@ -133,7 +133,13 @@ func GetCredentials() (username, password string, source CredentialSource, err e
 		}
 	}
 
-	// 2. Fall back to env vars
+	// 2. Try plaintext file
+	username, password, err = readFileCredentials()
+	if err == nil {
+		return username, password, SourceFile, nil
+	}
+
+	// 3. Fall back to env vars
 	username = os.Getenv("PARKSTER_USERNAME")
 	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {
@@ -146,12 +152,11 @@ func GetCredentials() (username, password string, source CredentialSource, err e
 // GetCredentialsWithCaller retrieves credentials and updates the keychain
 // item description with the caller name (for agent identification).
 func GetCredentialsWithCaller(callerName string) (username, password string, source CredentialSource, err error) {
-	// 1. Try keyring first
+	// 1. Try OS keyring
 	ring, kerr := openKeyring()
 	if kerr == nil {
 		username, password, err = getCredentialsFromKeyring(ring)
 		if err == nil {
-			// Update description with caller info if provided
 			if callerName != "" {
 				updateKeychainDescription(ring, username, password, callerName)
 			}
@@ -159,7 +164,13 @@ func GetCredentialsWithCaller(callerName string) (username, password string, sou
 		}
 	}
 
-	// 2. Fall back to env vars
+	// 2. Try plaintext file
+	username, password, err = readFileCredentials()
+	if err == nil {
+		return username, password, SourceFile, nil
+	}
+
+	// 3. Fall back to env vars
 	username = os.Getenv("PARKSTER_USERNAME")
 	password = os.Getenv("PARKSTER_PASSWORD")
 	if username != "" && password != "" {

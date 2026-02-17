@@ -588,3 +588,95 @@ func TestDeleteFileCredentials_MissingFile(t *testing.T) {
 		t.Fatal("expected error when file doesn't exist")
 	}
 }
+
+// --- GetCredentials file fallback tests ---
+
+func TestGetCredentials_FileFallback_WhenKeyringUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PARKSTER_USERNAME", "")
+	t.Setenv("PARKSTER_PASSWORD", "")
+
+	// Make keyring unavailable
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return nil, fmt.Errorf("no keyring available")
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	// Store credentials in file
+	err := writeFileCredentials("file-user", "file-pass")
+	if err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	username, password, source, err := GetCredentials()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "file-user" {
+		t.Errorf("expected 'file-user', got %q", username)
+	}
+	if password != "file-pass" {
+		t.Errorf("expected 'file-pass', got %q", password)
+	}
+	if source != SourceFile {
+		t.Errorf("expected source %q, got %q", SourceFile, source)
+	}
+}
+
+func TestGetCredentials_FileTakesPriorityOverEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PARKSTER_USERNAME", "env-user")
+	t.Setenv("PARKSTER_PASSWORD", "env-pass")
+
+	// Make keyring unavailable
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return nil, fmt.Errorf("no keyring available")
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	// Store different credentials in file
+	err := writeFileCredentials("file-user", "file-pass")
+	if err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	username, _, source, err := GetCredentials()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "file-user" {
+		t.Errorf("expected 'file-user' (file takes priority over env), got %q", username)
+	}
+	if source != SourceFile {
+		t.Errorf("expected source %q, got %q", SourceFile, source)
+	}
+}
+
+func TestGetCredentials_EnvFallback_WhenKeyringAndFileUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("PARKSTER_USERNAME", "env-user")
+	t.Setenv("PARKSTER_PASSWORD", "env-pass")
+
+	// Make keyring unavailable, no file exists
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return nil, fmt.Errorf("no keyring available")
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	username, _, source, err := GetCredentials()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if username != "env-user" {
+		t.Errorf("expected 'env-user', got %q", username)
+	}
+	if source != SourceEnvironment {
+		t.Errorf("expected source %q, got %q", SourceEnvironment, source)
+	}
+}
