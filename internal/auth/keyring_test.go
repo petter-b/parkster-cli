@@ -119,6 +119,21 @@ func TestConfigDir_Default(t *testing.T) {
 	}
 }
 
+func TestSourceFile_Value(t *testing.T) {
+	if SourceFile != "file" {
+		t.Errorf("expected SourceFile to be \"file\", got %q", SourceFile)
+	}
+}
+
+func TestCredentialsFilePath(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/test-xdg")
+	path := CredentialsFilePath()
+	expected := "/tmp/test-xdg/parkster/credentials.json"
+	if path != expected {
+		t.Errorf("expected %q, got %q", expected, path)
+	}
+}
+
 // --- mockKeyringStore ---
 
 type mockKeyringStore struct {

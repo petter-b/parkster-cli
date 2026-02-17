@@ -20,6 +20,7 @@ type CredentialSource string
 const (
 	SourceKeyring     CredentialSource = "keyring"
 	SourceEnvironment CredentialSource = "environment"
+	SourceFile        CredentialSource = "file"
 )
 
 // credentials holds username and password as a single JSON blob for keychain storage.
@@ -79,6 +80,11 @@ func configDir() string {
 		home = os.TempDir()
 	}
 	return filepath.Join(home, ".config", serviceName)
+}
+
+// CredentialsFilePath returns the path to the plaintext credentials file.
+func CredentialsFilePath() string {
+	return filepath.Join(configDir(), "credentials.json")
 }
 
 // GetCredentials retrieves credentials.
