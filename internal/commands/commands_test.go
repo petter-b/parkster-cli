@@ -4322,3 +4322,33 @@ func TestZonesSearch_MissingFlags_JSON_Error(t *testing.T) {
 		t.Errorf("expected success=false, got %v", envelope["success"])
 	}
 }
+
+// G4: PARKSTER_DEBUG=false does NOT enable debug
+func TestDebug_EnvFalse_DisablesDebug(t *testing.T) {
+	t.Setenv("PARKSTER_DEBUG", "false")
+	resetFlags()
+	if debug {
+		t.Error("PARKSTER_DEBUG=false should NOT enable debug mode")
+	}
+}
+
+// G8: PARKSTER_EMAIL is not a recognized env var (only PARKSTER_USERNAME works)
+func TestAuth_EnvParksterEmail_NotRecognized(t *testing.T) {
+	t.Setenv("PARKSTER_EMAIL", "test@example.com")
+	t.Setenv("PARKSTER_PASSWORD", "testpass")
+	t.Setenv("PARKSTER_USERNAME", "")
+
+	// Isolate from keyring and file-based credentials
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return auth.GetCredentials()
+	}
+	t.Cleanup(func() { getCredentials = orig })
+
+	_, _, _, err := getCredentials()
+	if err == nil {
+		t.Error("PARKSTER_EMAIL should not be recognized; only PARKSTER_USERNAME works")
+	}
+}
