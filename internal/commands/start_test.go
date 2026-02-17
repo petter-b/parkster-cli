@@ -838,28 +838,6 @@ func TestStart_LonWithoutLat_Error(t *testing.T) {
 
 // --- Start --until with past time ---
 
-func TestStart_UntilInPast_Error(t *testing.T) {
-	setAuth(t)
-
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID:              1,
-			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
-			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
-		},
-	}
-	withMockClient(t, mock)
-
-	// Use a time that's definitely in the past (00:01 today)
-	_, _, err := executeCommand("start", "--zone", "17429", "--until", "00:01")
-	if err == nil {
-		// Only errors if it's actually past midnight+1min
-		if time.Now().Hour() > 0 || time.Now().Minute() > 1 {
-			t.Fatal("expected error for --until time in the past")
-		}
-	}
-}
-
 // --- Start --payment with unknown payment ---
 
 func TestStart_PaymentFlagUnknown_Error(t *testing.T) {
@@ -1480,13 +1458,44 @@ func TestParseUntil_LeadingZero(t *testing.T) {
 }
 
 func TestParseUntil_ResultIsToday(t *testing.T) {
-	result, err := parseUntil("15:00")
+	// Use a controlled time so the test is deterministic
+	fakeNow := time.Date(2026, 2, 17, 10, 0, 0, 0, time.Local)
+	result, err := parseUntilFrom("15:00", fakeNow)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	now := time.Now()
-	if result.Year() != now.Year() || result.Month() != now.Month() || result.Day() != now.Day() {
-		t.Errorf("expected today's date, got %v", result)
+	if result.Day() != 17 {
+		t.Errorf("expected day 17, got %d", result.Day())
+	}
+}
+
+func TestParseUntil_WrapsToTomorrowWhenPast(t *testing.T) {
+	// At 23:00, --until 01:00 should mean tomorrow 01:00, not today 01:00
+	fakeNow := time.Date(2026, 2, 17, 23, 0, 0, 0, time.Local)
+
+	result, err := parseUntilFrom("01:00", fakeNow)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	expected := time.Date(2026, 2, 18, 1, 0, 0, 0, time.Local)
+	if !result.Equal(expected) {
+		t.Errorf("expected %v, got %v", expected, result)
+	}
+}
+
+func TestParseUntil_NoWrapWhenFuture(t *testing.T) {
+	// At 10:00, --until 14:00 should stay on same day
+	fakeNow := time.Date(2026, 2, 17, 10, 0, 0, 0, time.Local)
+
+	result, err := parseUntilFrom("14:00", fakeNow)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	expected := time.Date(2026, 2, 17, 14, 0, 0, 0, time.Local)
+	if !result.Equal(expected) {
+		t.Errorf("expected %v, got %v", expected, result)
 	}
 }
 

@@ -397,19 +397,6 @@ func TestChange_Duration_OutputShowsZoneAndCar(t *testing.T) {
 
 // --- Change --until with past time ---
 
-func TestChange_UntilInPast_Error(t *testing.T) {
-	// Use a time that's definitely in the past
-	_, _, err := executeCommand("change", "--until", "00:01")
-	if err == nil {
-		if time.Now().Hour() > 0 || time.Now().Minute() > 1 {
-			t.Fatal("expected error for --until time in the past")
-		}
-	}
-	if err != nil && !strings.Contains(err.Error(), "in the past") {
-		t.Errorf("expected 'in the past' in error, got: %v", err)
-	}
-}
-
 // --- Bug regression: disambiguation list contaminates JSON output ---
 
 func TestChange_MultipleParkings_JSON_OutputIsValidJSON(t *testing.T) {

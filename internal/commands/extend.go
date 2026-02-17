@@ -36,6 +36,10 @@ func init() {
 // parseUntil parses time in "HH:MM", "HH.MM", or bare "HH" format.
 // Returns the target time today in local timezone.
 func parseUntil(s string) (time.Time, error) {
+	return parseUntilFrom(s, time.Now())
+}
+
+func parseUntilFrom(s string, now time.Time) (time.Time, error) {
 	// Normalize dot separator to colon
 	normalized := strings.ReplaceAll(s, ".", ":")
 
@@ -49,8 +53,11 @@ func parseUntil(s string) (time.Time, error) {
 		}
 	}
 
-	now := time.Now()
 	target := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
+	// If the target is in the past, assume the user means tomorrow
+	if target.Before(now) {
+		target = target.Add(24 * time.Hour)
+	}
 	return target, nil
 }
 
@@ -81,9 +88,6 @@ func runChange(cmd *cobra.Command, args []string) error {
 		desiredEnd, parseErr = parseUntil(until)
 		if parseErr != nil {
 			return parseErr
-		}
-		if desiredEnd.Before(time.Now()) {
-			return fmt.Errorf("--until time %s is in the past", until)
 		}
 	}
 

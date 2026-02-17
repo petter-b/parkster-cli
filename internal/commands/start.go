@@ -129,11 +129,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		now := time.Now()
-		if target.Before(now) {
-			return fmt.Errorf("--until time %s is in the past", until)
-		}
-		timeout = int(target.Sub(now).Minutes())
+		timeout = int(time.Until(target).Minutes())
 		if timeout < 1 {
 			timeout = 1
 		}
