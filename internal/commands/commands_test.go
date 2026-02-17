@@ -4329,25 +4329,25 @@ func TestZonesSearch_Quiet_HasResults(t *testing.T) {
 // These tests document behavior found during the CLI command audit.
 // See docs/plans/2026-02-17-cli-command-audit.md for full audit report.
 
-// G1: Unknown auth subcommand returns error
-func TestAuth_UnknownSubcommand_ReturnsError(t *testing.T) {
-	_, _, err := executeCommand("auth", "foobar")
-	if err == nil {
-		t.Fatal("expected error for unknown auth subcommand")
+// G1: Unknown auth subcommand shows help (Cobra default for parent commands)
+func TestAuth_UnknownSubcommand_ShowsHelp(t *testing.T) {
+	stdout, _, err := executeCommand("auth", "foobar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "unknown subcommand") {
-		t.Errorf("expected 'unknown subcommand' in error, got: %q", err.Error())
+	if !strings.Contains(stdout, "login") {
+		t.Error("auth with unknown subcommand should show help mentioning login")
 	}
 }
 
-// G2: Unknown zones subcommand returns error
-func TestZones_UnknownSubcommand_ReturnsError(t *testing.T) {
-	_, _, err := executeCommand("zones", "foobar")
-	if err == nil {
-		t.Fatal("expected error for unknown zones subcommand")
+// G2: Unknown zones subcommand shows help (Cobra default for parent commands)
+func TestZones_UnknownSubcommand_ShowsHelp(t *testing.T) {
+	stdout, _, err := executeCommand("zones", "foobar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "unknown subcommand") {
-		t.Errorf("expected 'unknown subcommand' in error, got: %q", err.Error())
+	if !strings.Contains(stdout, "search") {
+		t.Error("zones with unknown subcommand should show help mentioning search")
 	}
 }
 
