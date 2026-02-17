@@ -23,7 +23,7 @@ var (
 
 // errSilent indicates the error message was already printed.
 // Execute() will skip printing but still return non-nil for os.Exit(1).
-var errSilent = errors.New("")
+var errSilent = errors.New("silent error: already printed")
 
 var rootCmd = &cobra.Command{
 	Use:   "parkster",
