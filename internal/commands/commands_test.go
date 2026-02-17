@@ -4717,3 +4717,70 @@ func TestResolveZone_CodeFallsBackToID(t *testing.T) {
 		t.Errorf("expected zone ID 17429, got %d", zone.ID)
 	}
 }
+
+// --- JSON error envelope tests ---
+
+func TestStartCommand_AuthFailure_JSON_ErrorEnvelope(t *testing.T) {
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", fmt.Errorf("no credentials")
+	}
+	t.Cleanup(func() { getCredentials = orig })
+
+	stdout, _, err := executeCommandFull("start", "--zone", "17429", "--duration", "30", "--json")
+	if err == nil {
+		t.Fatal("expected error for missing credentials")
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON error envelope, got: %v\nstdout: %q", err, stdout)
+	}
+	if envelope.Success {
+		t.Error("expected success=false")
+	}
+	if envelope.Error == nil {
+		t.Error("expected non-nil error field")
+	}
+}
+
+func TestZonesInfo_NotFound_JSON_ErrorEnvelope(t *testing.T) {
+	mock := &mockAPI{
+		getZoneErr: fmt.Errorf("Parking zone not found."),
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommandFull("zones", "info", "99999", "--json")
+	if err == nil {
+		t.Fatal("expected error for zone not found")
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON error envelope, got: %v\nstdout: %q", err, stdout)
+	}
+	if envelope.Success {
+		t.Error("expected success=false")
+	}
+}
+
+func TestStopCommand_NoParkings_JSON_EmptyArray(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{ID: 1},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("stop", "--json")
+	if err != nil {
+		t.Fatalf("expected no error for empty parkings, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON envelope, got: %v\nstdout: %q", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true for empty list")
+	}
+}
