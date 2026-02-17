@@ -204,7 +204,6 @@ func TestPrintSuccess_Human_Slice(t *testing.T) {
 }
 
 func TestPrintSuccess_Human_EmptyFields(t *testing.T) {
-	// Name is zero value (empty string), should be omitted
 	item := testItem{ID: 7, Name: ""}
 
 	out := captureStdout(t, func() {
@@ -214,8 +213,28 @@ func TestPrintSuccess_Human_EmptyFields(t *testing.T) {
 	if !strings.Contains(out, "id: 7") {
 		t.Errorf("Expected 'id: 7' in output, got %q", out)
 	}
-	if strings.Contains(out, "name") {
-		t.Errorf("Expected zero-value 'name' field to be omitted, got %q", out)
+	// Zero-value fields should now be shown
+	if !strings.Contains(out, "name:") {
+		t.Errorf("Expected zero-value 'name' field to be shown, got %q", out)
+	}
+}
+
+func TestPrintSuccess_Human_ZeroValueFields_Shown(t *testing.T) {
+	type costItem struct {
+		Name string  `json:"name"`
+		Cost float64 `json:"cost"`
+	}
+	item := costItem{Name: "parking", Cost: 0}
+
+	out := captureStdout(t, func() {
+		_ = PrintSuccess(item, ModeHuman)
+	})
+
+	if !strings.Contains(out, "name: parking") {
+		t.Errorf("expected 'name: parking' in output, got %q", out)
+	}
+	if !strings.Contains(out, "cost: 0") {
+		t.Errorf("expected 'cost: 0' in output (zero values must be shown), got %q", out)
 	}
 }
 

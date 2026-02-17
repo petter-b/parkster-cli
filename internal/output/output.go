@@ -105,9 +105,6 @@ func printHumanItem(data any) error {
 		if !field.CanInterface() {
 			continue
 		}
-		if isZero(field) {
-			continue
-		}
 
 		name := t.Field(i).Name
 		if tag := t.Field(i).Tag.Get("json"); tag != "" {
@@ -120,24 +117,4 @@ func printHumanItem(data any) error {
 		fmt.Printf("%s: %v\n", name, field.Interface())
 	}
 	return nil
-}
-
-func isZero(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.String:
-		return v.String() == ""
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return v.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
-	case reflect.Bool:
-		return !v.Bool()
-	case reflect.Slice, reflect.Map:
-		return v.IsNil() || v.Len() == 0
-	case reflect.Ptr, reflect.Interface:
-		return v.IsNil()
-	}
-	return false
 }
