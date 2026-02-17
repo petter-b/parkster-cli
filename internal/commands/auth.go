@@ -110,6 +110,15 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to store credentials: %w", err)
 	}
 
+	mode := OutputMode()
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(map[string]string{
+			"message":  "credentials stored",
+			"username": username,
+			"source":   string(source),
+		}, mode)
+	}
+
 	if source == auth.SourceFile {
 		fmt.Fprintf(os.Stderr, "Credentials stored for %s (file: %s)\n", username, auth.CredentialsFilePath())
 	} else {

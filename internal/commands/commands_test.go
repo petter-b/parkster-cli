@@ -3181,6 +3181,38 @@ func TestAuthLogin_SaveFails_Error(t *testing.T) {
 	}
 }
 
+func TestAuthLogin_Success_JSON_Envelope(t *testing.T) {
+	// Override stdin to provide credentials
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	_, _ = w.WriteString("testuser@example.com\ntestpass\n")
+	_ = w.Close()
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	mock := &mockAPI{loginResp: &parkster.User{ID: 1, Email: "testuser@example.com"}}
+	withMockClient(t, mock)
+
+	origSave := saveCredentials
+	saveCredentials = func(_, _ string) (auth.CredentialSource, error) {
+		return auth.SourceKeyring, nil
+	}
+	t.Cleanup(func() { saveCredentials = origSave })
+
+	stdout, _, err := executeCommand("auth", "login", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON envelope, got parse error: %v\nstdout: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
+	}
+}
+
 // --- Auth status tests ---
 
 func TestAuthStatus_ValidCredentials(t *testing.T) {
