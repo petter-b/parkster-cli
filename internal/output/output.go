@@ -79,7 +79,7 @@ func printHuman(data any) error {
 				fmt.Println()
 			}
 			if err := printHumanItem(v.Index(i).Interface()); err != nil {
-				return err
+				return fmt.Errorf("printing item %d: %w", i, err)
 			}
 		}
 		return nil
