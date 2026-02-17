@@ -277,13 +277,20 @@ func saveCredentialsTo(ring KeyringStore, username, password string) error {
 	})
 }
 
-// DeleteCredentials removes credentials from keyring
+// DeleteCredentials removes credentials from both keyring and file.
 func DeleteCredentials() error {
+	keyringDeleted := false
 	ring, err := openKeyring()
-	if err != nil {
-		return fmt.Errorf("failed to open keyring: %w", err)
+	if err == nil {
+		if err := deleteCredentialsFrom(ring); err == nil {
+			keyringDeleted = true
+		}
 	}
-	return deleteCredentialsFrom(ring)
+	fileDeleted := deleteFileCredentials() == nil
+	if !keyringDeleted && !fileDeleted {
+		return ErrNoCredentials
+	}
+	return nil
 }
 
 // deleteCredentialsFrom removes credentials using the provided KeyringStore.

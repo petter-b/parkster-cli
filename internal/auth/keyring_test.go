@@ -610,6 +610,51 @@ func TestDeleteFileCredentials_MissingFile(t *testing.T) {
 	}
 }
 
+func TestDeleteCredentials_RemovesFile_WhenKeyringUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	// Make keyring unavailable
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return nil, fmt.Errorf("no keyring available")
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	// Store credentials in file
+	err := writeFileCredentials("user", "pass")
+	if err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	err = DeleteCredentials()
+	if err != nil {
+		t.Fatalf("DeleteCredentials failed: %v", err)
+	}
+
+	// File should be gone
+	if _, err := os.Stat(CredentialsFilePath()); !os.IsNotExist(err) {
+		t.Error("expected credentials file to be deleted")
+	}
+}
+
+func TestDeleteCredentials_NothingStored_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	// Make keyring unavailable, no file exists
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return nil, fmt.Errorf("no keyring available")
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	err := DeleteCredentials()
+	if !errors.Is(err, ErrNoCredentials) {
+		t.Errorf("expected ErrNoCredentials, got: %v", err)
+	}
+}
+
 // --- SaveCredentials file fallback tests ---
 
 func TestSaveCredentials_FallsBackToFile_WhenKeyringUnavailable(t *testing.T) {
