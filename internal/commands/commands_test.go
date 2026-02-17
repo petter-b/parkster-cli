@@ -4479,3 +4479,39 @@ func TestFlagParseError_JSON_WrappedInEnvelope(t *testing.T) {
 		t.Error("expected non-null error field")
 	}
 }
+
+func TestZonesInfo_NumericInput_NoLatLon_HintsAboutCoordinates(t *testing.T) {
+	mock := &mockAPI{
+		getZoneErr: fmt.Errorf("Parking zone not found."),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "info", "80500")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--lat") || !strings.Contains(err.Error(), "--lon") {
+		t.Errorf("expected hint about --lat/--lon in error, got: %v", err)
+	}
+}
+
+func TestStart_NumericZone_NoLatLon_HintsAboutCoordinates(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 1, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PAY:1"}},
+		},
+		getZoneErr: fmt.Errorf("Parking zone not found."),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--lat") || !strings.Contains(err.Error(), "--lon") {
+		t.Errorf("expected hint about --lat/--lon in error, got: %v", err)
+	}
+}

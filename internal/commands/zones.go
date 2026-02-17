@@ -151,6 +151,9 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	debugLog("looking up zone by ID %d", zoneID)
 	zone, err := client.GetZone(zoneID)
 	if err != nil {
+		if !hasLat {
+			return fmt.Errorf("zone not found: %w\nHint: if %q is a sign code, add --lat and --lon for lookup", err, zoneInput)
+		}
 		return fmt.Errorf("zone not found: %w", err)
 	}
 

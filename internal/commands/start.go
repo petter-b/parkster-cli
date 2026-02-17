@@ -79,6 +79,9 @@ func resolveZone(client parkster.API, zoneInput string, lat, lon float64, radius
 
 	zone, err := client.GetZone(zoneID)
 	if err != nil {
+		if lat == 0 && lon == 0 {
+			return nil, fmt.Errorf("zone not found: %w\nHint: if %q is a sign code, add --lat and --lon for lookup", err, zoneInput)
+		}
 		return nil, fmt.Errorf("zone not found: %w", err)
 	}
 
