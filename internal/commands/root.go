@@ -93,9 +93,9 @@ func OutputMode() output.Mode {
 }
 
 // debugLog prints to stderr if debug mode is enabled
-func debugLog(fmt_ string, args ...any) {
+func debugLog(format string, args ...any) {
 	if debug {
-		fmt.Fprintf(os.Stderr, "DEBUG: "+fmt_+"\n", args...)
+		fmt.Fprintf(os.Stderr, "DEBUG: "+format+"\n", args...)
 	}
 }
 
