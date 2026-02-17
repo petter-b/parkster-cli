@@ -87,6 +87,48 @@ func CredentialsFilePath() string {
 	return filepath.Join(configDir(), "credentials.json")
 }
 
+// writeFileCredentials stores credentials as plaintext JSON in the config directory.
+func writeFileCredentials(username, password string) error {
+	creds := credentials{Username: username, Password: password}
+	data, err := json.Marshal(creds)
+	if err != nil {
+		return fmt.Errorf("failed to encode credentials: %w", err)
+	}
+	path := CredentialsFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("failed to write credentials file: %w", err)
+	}
+	return nil
+}
+
+// readFileCredentials reads credentials from the plaintext JSON file.
+func readFileCredentials() (string, string, error) {
+	data, err := os.ReadFile(CredentialsFilePath())
+	if err != nil {
+		return "", "", fmt.Errorf("no credentials file found")
+	}
+	var creds credentials
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return "", "", fmt.Errorf("corrupted credentials file: run 'parkster auth login' to re-store")
+	}
+	if creds.Username == "" || creds.Password == "" {
+		return "", "", fmt.Errorf("incomplete credentials in file")
+	}
+	return creds.Username, creds.Password, nil
+}
+
+// deleteFileCredentials removes the plaintext credentials file.
+func deleteFileCredentials() error {
+	err := os.Remove(CredentialsFilePath())
+	if err != nil {
+		return fmt.Errorf("no credentials file to remove")
+	}
+	return nil
+}
+
 // GetCredentials retrieves credentials.
 // Priority: keyring > env vars (PARKSTER_USERNAME/PARKSTER_PASSWORD).
 func GetCredentials() (username, password string, source CredentialSource, err error) {

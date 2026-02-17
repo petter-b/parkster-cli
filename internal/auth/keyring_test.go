@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -467,5 +469,122 @@ func TestUpdateKeychainDescription(t *testing.T) {
 	_ = json.Unmarshal(item.Data, &got)
 	if got.Username != "user" || got.Password != "pass" {
 		t.Errorf("credentials should be preserved, got %+v", got)
+	}
+}
+
+// --- File credential tests ---
+
+func TestWriteAndReadFileCredentials(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	err := writeFileCredentials("user@test.com", "secret123")
+	if err != nil {
+		t.Fatalf("writeFileCredentials failed: %v", err)
+	}
+
+	username, password, err := readFileCredentials()
+	if err != nil {
+		t.Fatalf("readFileCredentials failed: %v", err)
+	}
+	if username != "user@test.com" {
+		t.Errorf("expected username 'user@test.com', got %q", username)
+	}
+	if password != "secret123" {
+		t.Errorf("expected password 'secret123', got %q", password)
+	}
+}
+
+func TestWriteFileCredentials_Permissions(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	err := writeFileCredentials("user", "pass")
+	if err != nil {
+		t.Fatalf("writeFileCredentials failed: %v", err)
+	}
+
+	info, err := os.Stat(CredentialsFilePath())
+	if err != nil {
+		t.Fatalf("stat failed: %v", err)
+	}
+	perm := info.Mode().Perm()
+	if perm != 0600 {
+		t.Errorf("expected permissions 0600, got %04o", perm)
+	}
+}
+
+func TestReadFileCredentials_MissingFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	_, _, err := readFileCredentials()
+	if err == nil {
+		t.Fatal("expected error when file doesn't exist")
+	}
+}
+
+func TestReadFileCredentials_CorruptedJSON(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	path := filepath.Join(dir, "parkster", "credentials.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("not-json"), 0600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, _, err := readFileCredentials()
+	if err == nil {
+		t.Fatal("expected error for corrupted JSON")
+	}
+}
+
+func TestReadFileCredentials_EmptyFields(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	path := filepath.Join(dir, "parkster", "credentials.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(`{"username":"","password":""}`), 0600); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	_, _, err := readFileCredentials()
+	if err == nil {
+		t.Fatal("expected error for empty credentials")
+	}
+}
+
+func TestDeleteFileCredentials_RemovesFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	err := writeFileCredentials("user", "pass")
+	if err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	err = deleteFileCredentials()
+	if err != nil {
+		t.Fatalf("deleteFileCredentials failed: %v", err)
+	}
+
+	if _, err := os.Stat(CredentialsFilePath()); !os.IsNotExist(err) {
+		t.Error("expected credentials file to be deleted")
+	}
+}
+
+func TestDeleteFileCredentials_MissingFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	err := deleteFileCredentials()
+	if err == nil {
+		t.Fatal("expected error when file doesn't exist")
 	}
 }
