@@ -41,7 +41,10 @@ func resetCommandFlags(cmd *cobra.Command) {
 	}
 }
 
-// executeCommand runs a command with args and captures stdout/stderr
+// executeCommand runs a command with args and captures stdout/stderr.
+// NOTE: This calls rootCmd.Execute() directly, bypassing the Execute()
+// wrapper that handles JSON error formatting. Use executeCommandFull()
+// for tests that need the full error-wrapping behavior.
 func executeCommand(args ...string) (stdout string, stderr string, err error) {
 	resetFlags()
 
@@ -57,6 +60,35 @@ func executeCommand(args ...string) (stdout string, stderr string, err error) {
 
 	rootCmd.SetArgs(args)
 	err = rootCmd.Execute()
+
+	_ = wOut.Close()
+	_ = wErr.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var bufOut, bufErr bytes.Buffer
+	_, _ = bufOut.ReadFrom(rOut)
+	_, _ = bufErr.ReadFrom(rErr)
+
+	return bufOut.String(), bufErr.String(), err
+}
+
+// executeCommandFull runs a command through the full Execute() wrapper,
+// which formats non-silent errors as JSON when --json is set.
+// Use this for tests that verify JSON error envelopes on validation errors.
+func executeCommandFull(args ...string) (stdout string, stderr string, err error) {
+	resetFlags()
+
+	oldStdout := os.Stdout
+	rOut, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	oldStderr := os.Stderr
+	rErr, wErr, _ := os.Pipe()
+	os.Stderr = wErr
+
+	rootCmd.SetArgs(args)
+	err = Execute()
 
 	_ = wOut.Close()
 	_ = wErr.Close()
@@ -3853,5 +3885,333 @@ func TestChange_Quiet_NoParkings_NoOutput(t *testing.T) {
 	}
 	if stderr != "" {
 		t.Errorf("expected no stderr with --quiet, got: %q", stderr)
+	}
+}
+
+// --- Auth logout JSON tests ---
+
+// BUG: auth logout --json does not produce a JSON envelope on stdout.
+// It only writes "No credentials to remove" to stderr.
+// A JSON consumer gets no stdout output at all.
+func TestAuthLogout_NoCredentials_JSON_NoEnvelope(t *testing.T) {
+	orig := deleteCredentials
+	deleteCredentials = func() error {
+		return auth.ErrNoCredentials
+	}
+	t.Cleanup(func() { deleteCredentials = orig })
+
+	stdout, stderr, err := executeCommand("auth", "logout", "--json")
+	if err != nil {
+		t.Fatalf("logout should not error, got: %v", err)
+	}
+	// Current behavior: no JSON envelope on stdout (this is a bug)
+	if stdout != "" {
+		t.Errorf("currently produces no stdout, but got: %q (if this fails, the bug was fixed!)", stdout)
+	}
+	if !strings.Contains(stderr, "No credentials to remove") {
+		t.Errorf("expected message on stderr, got: %q", stderr)
+	}
+}
+
+// BUG: auth logout --json with credentials produces no JSON envelope.
+func TestAuthLogout_WithCredentials_JSON_NoEnvelope(t *testing.T) {
+	origDelete := deleteCredentials
+	deleteCredentials = func() error { return nil }
+	t.Cleanup(func() { deleteCredentials = origDelete })
+
+	stdout, stderr, err := executeCommand("auth", "logout", "--json")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	// Current behavior: no JSON envelope on stdout (this is a bug)
+	if stdout != "" {
+		t.Errorf("currently produces no stdout, but got: %q (if this fails, the bug was fixed!)", stdout)
+	}
+	if !strings.Contains(stderr, "Credentials removed") {
+		t.Errorf("expected message on stderr, got: %q", stderr)
+	}
+}
+
+// --- Disambiguation lists go to stderr, not stdout ---
+
+func TestStart_MultipleCars_DisambiguationOnStderr(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volvo"}},
+				{ID: 101, LicenseNbr: "DEF456", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, _ := executeCommand("start", "--zone", "17429", "--duration", "30", "--json")
+
+	// Car list should appear on stderr, not stdout
+	if strings.Contains(stdout, "ABC123") || strings.Contains(stdout, "DEF456") {
+		t.Errorf("disambiguation list should not appear on stdout: %q", stdout)
+	}
+	if !strings.Contains(stderr, "ABC123") && !strings.Contains(stderr, "DEF456") {
+		t.Errorf("disambiguation list should appear on stderr, got: %q", stderr)
+	}
+}
+
+func TestStart_MultiplePayments_DisambiguationOnStderr(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:   1,
+			Cars: []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{
+				{PaymentAccountID: "PRIVATE:111"},
+				{PaymentAccountID: "AT_WORK:222"},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, _ := executeCommand("start", "--zone", "17429", "--duration", "30", "--json")
+
+	if strings.Contains(stdout, "PRIVATE") || strings.Contains(stdout, "AT_WORK") {
+		t.Errorf("payment disambiguation should not appear on stdout: %q", stdout)
+	}
+	if !strings.Contains(stderr, "PRIVATE") && !strings.Contains(stderr, "AT_WORK") {
+		t.Errorf("payment disambiguation should appear on stderr, got: %q", stderr)
+	}
+}
+
+func TestStop_MultipleParkings_DisambiguationOnStderr(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Zone A"}},
+				{ID: 501, ParkingZone: parkster.Zone{ZoneCode: "17429", Name: "Zone B"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, _ := executeCommand("stop", "--json")
+
+	if strings.Contains(stdout, "80500") || strings.Contains(stdout, "Zone A") {
+		t.Errorf("parking disambiguation should not appear on stdout: %q", stdout)
+	}
+	if !strings.Contains(stderr, "80500") && !strings.Contains(stderr, "Zone A") {
+		t.Errorf("parking disambiguation should appear on stderr, got: %q", stderr)
+	}
+}
+
+func TestChange_MultipleParkings_DisambiguationOnStderr(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500", Name: "Zone A"}},
+				{ID: 501, ParkingZone: parkster.Zone{ZoneCode: "17429", Name: "Zone B"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, _ := executeCommand("change", "--duration", "30", "--json")
+
+	if strings.Contains(stdout, "80500") || strings.Contains(stdout, "Zone A") {
+		t.Errorf("parking disambiguation should not appear on stdout: %q", stdout)
+	}
+	if !strings.Contains(stderr, "80500") && !strings.Contains(stderr, "Zone A") {
+		t.Errorf("parking disambiguation should appear on stderr, got: %q", stderr)
+	}
+}
+
+// --- JSON error envelopes for validation errors ---
+
+// The following tests use executeCommandFull to test the full Execute() wrapper
+// which handles JSON error formatting for non-silent errors.
+
+func TestStart_ZeroDuration_JSON_Error(t *testing.T) {
+	setAuth(t)
+
+	stdout, _, err := executeCommandFull("start", "--zone", "17429", "--duration", "0", "--json")
+	if err == nil {
+		t.Fatal("expected error for zero duration")
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+	if envelope.Success {
+		t.Error("expected success=false")
+	}
+}
+
+func TestStart_NegativeDuration_JSON_Error(t *testing.T) {
+	setAuth(t)
+
+	stdout, _, err := executeCommandFull("start", "--zone", "17429", "--duration", "-5", "--json")
+	if err == nil {
+		t.Fatal("expected error for negative duration")
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+}
+
+func TestChange_ZeroDuration_JSON_Error(t *testing.T) {
+	setAuth(t)
+
+	stdout, _, err := executeCommandFull("change", "--duration", "0", "--json")
+	if err == nil {
+		t.Fatal("expected error for zero duration")
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+}
+
+func TestChange_NegativeDuration_JSON_Error(t *testing.T) {
+	setAuth(t)
+
+	stdout, _, err := executeCommandFull("change", "--duration", "-5", "--json")
+	if err == nil {
+		t.Fatal("expected error for negative duration")
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+}
+
+func TestStart_UntilInPast_JSON_Error(t *testing.T) {
+	if time.Now().Hour() == 0 && time.Now().Minute() <= 1 {
+		t.Skip("too close to midnight to test past time")
+	}
+	setAuth(t)
+
+	stdout, _, err := executeCommandFull("start", "--zone", "17429", "--until", "00:01", "--json")
+	if err == nil {
+		t.Fatal("expected error for past time")
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+}
+
+func TestChange_UntilInPast_JSON_Error(t *testing.T) {
+	if time.Now().Hour() == 0 && time.Now().Minute() <= 1 {
+		t.Skip("too close to midnight to test past time")
+	}
+
+	stdout, _, err := executeCommandFull("change", "--until", "00:01", "--json")
+	if err == nil {
+		t.Fatal("expected error for past time")
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+}
+
+// --- Edge case: stop with --parking-id 0 ---
+
+func TestStop_ParkingID_Zero_AutoSelects(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 500, ParkingZone: parkster.Zone{ZoneCode: "80500"}},
+			},
+		},
+		stopParkingResp: &parkster.Parking{ID: 500, Cost: 10},
+	}
+	withMockClient(t, mock)
+
+	// parking-id 0 is the default/zero value — should auto-select the single parking
+	_, _, err := executeCommand("stop", "--parking-id", "0")
+	if err != nil {
+		t.Fatalf("parking-id 0 should auto-select, got: %v", err)
+	}
+}
+
+// --- Human-mode disambiguation shows list on stdout ---
+
+func TestStart_MultipleCars_HumanMode_ShowsList(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123", CarPersonalization: parkster.CarPersonalization{Name: "Volvo"}},
+				{ID: 101, LicenseNbr: "DEF456", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for multiple cars")
+	}
+	// In human mode, car list should appear on stdout
+	if !strings.Contains(stdout, "ABC123") && !strings.Contains(stdout, "Volvo") {
+		t.Errorf("expected car list on stdout in human mode, got: %q", stdout)
+	}
+}
+
+// --- version --json --quiet still outputs JSON ---
+
+func TestVersion_JSON_Quiet(t *testing.T) {
+	stdout, _, err := executeCommand("version", "--json", "--quiet")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("version --json --quiet should produce valid JSON: %v", err)
+	}
+	if !envelope.Success {
+		t.Error("expected success=true")
+	}
+}
+
+// --- zones search --quiet ---
+
+func TestZonesSearch_Quiet_HasResults(t *testing.T) {
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{
+			ParkingZonesAtPosition: []parkster.ZoneSearchItem{
+				{ID: 1, ZoneCode: "80500", Name: "Ericsson", City: parkster.City{Name: "Kista"}},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("zones", "search", "--lat", "59.3", "--lon", "17.9", "--quiet")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Data should still appear on stdout
+	if !strings.Contains(stdout, "80500") {
+		t.Errorf("expected zone data on stdout even with --quiet, got: %q", stdout)
+	}
+	// Status messages should be suppressed on stderr
+	if strings.Contains(stderr, "Found") || strings.Contains(stderr, "Searching") {
+		t.Errorf("--quiet should suppress status messages on stderr, got: %q", stderr)
 	}
 }
