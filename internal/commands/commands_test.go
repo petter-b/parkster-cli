@@ -2697,10 +2697,10 @@ func TestAuthLogin_ValidCredentials_Success(t *testing.T) {
 	// Mock saveCredentials to avoid real keychain
 	origSave := saveCredentials
 	var savedUser, savedPass string
-	saveCredentials = func(u, p string) error {
+	saveCredentials = func(u, p string) (auth.CredentialSource, error) {
 		savedUser = u
 		savedPass = p
-		return nil
+		return auth.SourceKeyring, nil
 	}
 	t.Cleanup(func() { saveCredentials = origSave })
 
@@ -3160,8 +3160,8 @@ func TestAuthLogin_SaveFails_Error(t *testing.T) {
 	withMockClient(t, mock)
 
 	origSave := saveCredentials
-	saveCredentials = func(u, p string) error {
-		return fmt.Errorf("keyring locked")
+	saveCredentials = func(u, p string) (auth.CredentialSource, error) {
+		return "", fmt.Errorf("keyring locked")
 	}
 	t.Cleanup(func() { saveCredentials = origSave })
 

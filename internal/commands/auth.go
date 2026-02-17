@@ -16,14 +16,13 @@ import (
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Manage authentication credentials",
-	Long: `Manage authentication credentials stored in your OS keychain.
+	Long: `Manage authentication credentials.
 
-Credentials are stored securely using:
-- macOS: Keychain
-- Linux: Secret Service (GNOME Keyring, KWallet)
-- Windows: Credential Manager
+Credentials are stored using (in order of preference):
+- OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager)
+- Plaintext file (~/.config/parkster/credentials.json)
 
-Environment variables take precedence over stored credentials.`,
+Environment variables (PARKSTER_USERNAME/PARKSTER_PASSWORD) are used as a last resort.`,
 }
 
 var authAddCmd = &cobra.Command{
@@ -100,11 +99,16 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid credentials: %w", err)
 	}
 
-	if err := saveCredentials(username, password); err != nil {
+	source, err := saveCredentials(username, password)
+	if err != nil {
 		return fmt.Errorf("failed to store credentials: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Credentials stored for %s\n", username)
+	if source == auth.SourceFile {
+		fmt.Fprintf(os.Stderr, "Credentials stored for %s (file: %s)\n", username, auth.CredentialsFilePath())
+	} else {
+		fmt.Fprintf(os.Stderr, "Credentials stored for %s (%s)\n", username, source)
+	}
 	return nil
 }
 
