@@ -34,9 +34,13 @@ func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	// Save test credentials — skip if keychain access is denied
-	if _, err := saveCredentials("interactive-test@example.com", "test-password"); err != nil {
+	// Save test credentials — skip if keychain access is denied or unavailable
+	source, err := saveCredentials("interactive-test@example.com", "test-password")
+	if err != nil {
 		t.Skipf("keychain write denied or unavailable: %v", err)
+	}
+	if source != auth.SourceKeyring {
+		t.Skipf("keychain not available, credentials stored via %s", source)
 	}
 	t.Cleanup(func() {
 		_ = deleteCredentials()
