@@ -247,13 +247,19 @@ func getCredentialsFromKeyring(ring KeyringStore) (string, string, error) {
 	return creds.Username, creds.Password, nil
 }
 
-// SaveCredentials stores username and password as a single JSON item in keyring
-func SaveCredentials(username, password string) error {
+// SaveCredentials stores credentials. Tries OS keyring first, falls back to plaintext file.
+func SaveCredentials(username, password string) (CredentialSource, error) {
 	ring, err := openKeyring()
-	if err != nil {
-		return fmt.Errorf("failed to open keyring: %w", err)
+	if err == nil {
+		if err := saveCredentialsTo(ring, username, password); err == nil {
+			return SourceKeyring, nil
+		}
 	}
-	return saveCredentialsTo(ring, username, password)
+	// Fall back to plaintext file
+	if err := writeFileCredentials(username, password); err != nil {
+		return "", fmt.Errorf("failed to store credentials: %w", err)
+	}
+	return SourceFile, nil
 }
 
 // saveCredentialsTo stores credentials using the provided KeyringStore.

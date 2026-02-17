@@ -177,6 +177,27 @@ func (m *mockKeyringStore) Remove(key string) error {
 	return nil
 }
 
+func (m *mockKeyringStore) GetMetadata(key string) (keyring.Metadata, error) {
+	if m.err != nil {
+		return keyring.Metadata{}, m.err
+	}
+	if _, ok := m.items[key]; !ok {
+		return keyring.Metadata{}, keyring.ErrKeyNotFound
+	}
+	return keyring.Metadata{}, nil
+}
+
+func (m *mockKeyringStore) Keys() ([]string, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	keys := make([]string, 0, len(m.items))
+	for k := range m.items {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
 // --- SaveCredentials tests ---
 
 func TestSaveCredentials_StoresJSONBlob(t *testing.T) {
@@ -586,6 +607,72 @@ func TestDeleteFileCredentials_MissingFile(t *testing.T) {
 	err := deleteFileCredentials()
 	if err == nil {
 		t.Fatal("expected error when file doesn't exist")
+	}
+}
+
+// --- SaveCredentials file fallback tests ---
+
+func TestSaveCredentials_FallsBackToFile_WhenKeyringUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	// Make keyring unavailable
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return nil, fmt.Errorf("no keyring available")
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	source, err := SaveCredentials("file-user", "file-pass")
+	if err != nil {
+		t.Fatalf("SaveCredentials failed: %v", err)
+	}
+	if source != SourceFile {
+		t.Errorf("expected source %q, got %q", SourceFile, source)
+	}
+
+	// Verify we can read them back
+	username, password, readErr := readFileCredentials()
+	if readErr != nil {
+		t.Fatalf("readFileCredentials failed: %v", readErr)
+	}
+	if username != "file-user" || password != "file-pass" {
+		t.Errorf("expected file-user/file-pass, got %s/%s", username, password)
+	}
+}
+
+func TestSaveCredentials_ReturnsKeyringSource_WhenKeyringAvailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	ring := newMockKeyring()
+
+	// Make openKeyring return our mock
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return ring, nil
+	}
+	t.Cleanup(func() { openKeyring = orig })
+
+	source, err := SaveCredentials("kr-user", "kr-pass")
+	if err != nil {
+		t.Fatalf("SaveCredentials failed: %v", err)
+	}
+	if source != SourceKeyring {
+		t.Errorf("expected source %q, got %q", SourceKeyring, source)
+	}
+
+	// Verify credentials were stored in keyring
+	item, getErr := ring.Get(credentialKey("credentials"))
+	if getErr != nil {
+		t.Fatalf("expected item in keyring: %v", getErr)
+	}
+	var creds credentials
+	if err := json.Unmarshal(item.Data, &creds); err != nil {
+		t.Fatalf("stored data is not valid JSON: %v", err)
+	}
+	if creds.Username != "kr-user" || creds.Password != "kr-pass" {
+		t.Errorf("expected kr-user/kr-pass, got %s/%s", creds.Username, creds.Password)
 	}
 }
 
