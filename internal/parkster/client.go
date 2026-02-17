@@ -80,19 +80,19 @@ func (c *Client) get(path string, extraParams url.Values) (*http.Response, error
 	return c.doWithRetry(req)
 }
 
-// post makes a POST request with device params in form body
-func (c *Client) post(path string, data url.Values) (*http.Response, error) {
+// mutate performs a POST or PUT request with form-encoded body.
+// POST/PUT requests are not retried — mutations are not idempotent.
+func (c *Client) mutate(method, path string, data url.Values) (*http.Response, error) {
 	if data == nil {
 		data = url.Values{}
 	}
 
-	// Merge device params into body
 	for k, v := range c.deviceParams() {
 		data[k] = v
 	}
 
 	reqURL := fmt.Sprintf("%s%s", c.baseURL, path)
-	req, err := http.NewRequest("POST", reqURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest(method, reqURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -105,29 +105,14 @@ func (c *Client) post(path string, data url.Values) (*http.Response, error) {
 	return c.http.Do(req)
 }
 
+// post makes a POST request with device params in form body
+func (c *Client) post(path string, data url.Values) (*http.Response, error) {
+	return c.mutate("POST", path, data)
+}
+
 // put makes a PUT request with device params in form body
 func (c *Client) put(path string, data url.Values) (*http.Response, error) {
-	if data == nil {
-		data = url.Values{}
-	}
-
-	// Merge device params into body
-	for k, v := range c.deviceParams() {
-		data[k] = v
-	}
-
-	reqURL := fmt.Sprintf("%s%s", c.baseURL, path)
-	req, err := http.NewRequest("PUT", reqURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return nil, err
-	}
-
-	if c.username != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	return c.http.Do(req)
+	return c.mutate("PUT", path, data)
 }
 
 // parseErrorResponse reads a non-200 response body and extracts displayMessage if present.
