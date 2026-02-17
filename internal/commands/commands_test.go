@@ -4784,3 +4784,73 @@ func TestStopCommand_NoParkings_JSON_EmptyArray(t *testing.T) {
 		t.Error("expected success=true for empty list")
 	}
 }
+
+// --- No cars / no payments tests ---
+
+func TestStart_NoCars_ErrorMessage(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PAY:1"}},
+		},
+		getZoneResp: &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 1}},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for no cars")
+	}
+	if !strings.Contains(err.Error(), "no cars registered") {
+		t.Errorf("expected 'no cars registered' error, got: %v", err)
+	}
+}
+
+func TestStart_NoPaymentAccounts_ErrorMessage(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 1, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{},
+		},
+		getZoneResp: &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 1}},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for no payment accounts")
+	}
+	if !strings.Contains(err.Error(), "no payment methods") {
+		t.Errorf("expected 'no payment methods' error, got: %v", err)
+	}
+}
+
+func TestStart_NoCars_JSON_ErrorEnvelope(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PAY:1"}},
+		},
+		getZoneResp: &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 1}},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommandFull("start", "--zone", "17429", "--duration", "30", "--json")
+	if err == nil {
+		t.Fatal("expected error for no cars")
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("expected valid JSON, got: %v\nstdout: %q", err, stdout)
+	}
+	if envelope.Success {
+		t.Error("expected success=false")
+	}
+}
