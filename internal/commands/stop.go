@@ -16,6 +16,7 @@ var stopCmd = &cobra.Command{
 Examples:
   parkster stop                      # Auto-stops if only one active
   parkster stop --parking-id 123456  # Stop specific session`,
+	Args: cobra.NoArgs,
 	RunE: runStop,
 }
 

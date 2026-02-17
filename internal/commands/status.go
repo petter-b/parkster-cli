@@ -15,6 +15,7 @@ var statusCmd = &cobra.Command{
 Examples:
   parkster status
   parkster status --json`,
+	Args: cobra.NoArgs,
 	RunE: runStatus,
 }
 

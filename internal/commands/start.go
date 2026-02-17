@@ -37,6 +37,7 @@ Examples:
   parkster start --zone 80500 --duration 30 --lat 59.373 --lon 17.893
   parkster start --zone 17429 --until 18:30
   parkster start --dry-run --zone 80500 --duration 30 --lat 59.373 --lon 17.893`,
+	Args: cobra.NoArgs,
 	RunE: runStart,
 }
 

@@ -4413,3 +4413,43 @@ func TestChange_Until_RoundsUp(t *testing.T) {
 		t.Errorf("expected offset 61 minutes (rounded), got %d", mock.extendMinutes)
 	}
 }
+
+func TestStatus_ExtraArgs_Error(t *testing.T) {
+	_, _, err := executeCommand("status", "extra")
+	if err == nil {
+		t.Fatal("expected error for extra positional args on status")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected 'unknown command' error, got: %v", err)
+	}
+}
+
+func TestStop_ExtraArgs_Error(t *testing.T) {
+	_, _, err := executeCommand("stop", "extra")
+	if err == nil {
+		t.Fatal("expected error for extra positional args on stop")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected 'unknown command' error, got: %v", err)
+	}
+}
+
+func TestChange_ExtraArgs_Error(t *testing.T) {
+	_, _, err := executeCommand("change", "extra")
+	if err == nil {
+		t.Fatal("expected error for extra positional args on change")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected 'unknown command' error, got: %v", err)
+	}
+}
+
+func TestStart_ExtraArgs_Error(t *testing.T) {
+	_, _, err := executeCommand("start", "extra")
+	if err == nil {
+		t.Fatal("expected error for extra positional args on start")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected 'unknown command' error, got: %v", err)
+	}
+}

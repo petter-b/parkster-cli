@@ -23,6 +23,7 @@ Examples:
   parkster change --duration 60                      # End 60 min from now
   parkster change --until 18:30                      # End at 18:30 today
   parkster change --duration 60 --parking-id 123456  # Change specific session`,
+	Args: cobra.NoArgs,
 	RunE: runChange,
 }
 
