@@ -87,17 +87,17 @@ func writeFileCredentials(username, password string) error {
 		return fmt.Errorf("failed to encode credentials: %w", err)
 	}
 	path := CredentialsFilePath()
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write credentials file: %w", err)
 	}
 	return nil
 }
 
 // readFileCredentials reads credentials from the plaintext JSON file.
-func readFileCredentials() (string, string, error) {
+func readFileCredentials() (username, password string, err error) {
 	data, err := os.ReadFile(CredentialsFilePath())
 	if err != nil {
 		return "", "", fmt.Errorf("no credentials file found")
@@ -209,7 +209,7 @@ func updateKeychainDescription(ring KeyringStore, username, password, callerName
 }
 
 // getCredentialsFromKeyring reads credentials from the keyring.
-func getCredentialsFromKeyring(ring KeyringStore) (string, string, error) {
+func getCredentialsFromKeyring(ring KeyringStore) (username, password string, err error) {
 	item, err := ring.Get(credentialKey("credentials"))
 	if err != nil {
 		return "", "", fmt.Errorf("no credentials in keyring")

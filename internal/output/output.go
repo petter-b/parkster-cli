@@ -52,7 +52,7 @@ func PrintError(msg string, mode Mode) {
 	}
 }
 
-func printJSONEnvelope(success bool, data any, errMsg any) error {
+func printJSONEnvelope(success bool, data, errMsg any) error {
 	env := Envelope{
 		Success: success,
 		Data:    data,

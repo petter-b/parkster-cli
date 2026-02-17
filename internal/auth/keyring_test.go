@@ -530,8 +530,8 @@ func TestWriteFileCredentials_Permissions(t *testing.T) {
 		t.Fatalf("stat failed: %v", err)
 	}
 	perm := info.Mode().Perm()
-	if perm != 0600 {
-		t.Errorf("expected permissions 0600, got %04o", perm)
+	if perm != 0o600 {
+		t.Errorf("expected permissions 0o600, got %04o", perm)
 	}
 }
 
@@ -550,10 +550,10 @@ func TestReadFileCredentials_CorruptedJSON(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", dir)
 
 	path := filepath.Join(dir, "parkster", "credentials.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("MkdirAll failed: %v", err)
 	}
-	if err := os.WriteFile(path, []byte("not-json"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("not-json"), 0o600); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
@@ -568,10 +568,10 @@ func TestReadFileCredentials_EmptyFields(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", dir)
 
 	path := filepath.Join(dir, "parkster", "credentials.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("MkdirAll failed: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(`{"username":"","password":""}`), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"username":"","password":""}`), 0o600); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 

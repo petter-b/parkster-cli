@@ -20,7 +20,7 @@ func TestDoWithRetry_SuccessFirstAttempt(t *testing.T) {
 	client := NewClient("u", "p")
 	client.baseURL = server.URL
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -52,7 +52,7 @@ func TestDoWithRetry_RetriesOn500ThenSucceeds(t *testing.T) {
 	client.baseURL = server.URL
 	client.retryBaseBackoff = 10 * time.Millisecond // fast for tests
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("expected success after retries, got: %v", err)
@@ -80,7 +80,7 @@ func TestDoWithRetry_ExhaustsRetries_ReturnsLastResponse(t *testing.T) {
 	client.baseURL = server.URL
 	client.retryBaseBackoff = 10 * time.Millisecond
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("expected last response returned (not error), got: %v", err)
@@ -108,7 +108,7 @@ func TestDoWithRetry_NoRetryOn4xx(t *testing.T) {
 	client := NewClient("u", "p")
 	client.baseURL = server.URL
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("4xx should return response without error, got: %v", err)
@@ -134,7 +134,7 @@ func TestDoWithRetry_NoRetryOn401(t *testing.T) {
 	client := NewClient("u", "p")
 	client.baseURL = server.URL
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("401 should return response without error, got: %v", err)
@@ -169,7 +169,7 @@ func TestDoWithRetry_CallsOnRetry(t *testing.T) {
 		retryAttempts = append(retryAttempts, attempt)
 	}
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -204,7 +204,7 @@ func TestDoWithRetry_ExponentialBackoff(t *testing.T) {
 		backoffs = append(backoffs, backoff)
 	}
 
-	req, _ := http.NewRequest("GET", server.URL+"/test", nil)
+	req, _ := http.NewRequest("GET", server.URL+"/test", http.NoBody)
 	resp, err := client.doWithRetry(req)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
@@ -241,7 +241,7 @@ func TestDoWithRetry_NetworkError_Retries(t *testing.T) {
 		retryCount++
 	}
 
-	req, _ := http.NewRequest("GET", serverURL+"/test", nil)
+	req, _ := http.NewRequest("GET", serverURL+"/test", http.NoBody)
 	_, err := client.doWithRetry(req)
 	if err == nil {
 		t.Fatal("expected error for connection refused")

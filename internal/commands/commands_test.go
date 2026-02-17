@@ -45,7 +45,7 @@ func resetCommandFlags(cmd *cobra.Command) {
 // NOTE: This calls rootCmd.Execute() directly, bypassing the Execute()
 // wrapper that handles JSON error formatting. Use executeCommandFull()
 // for tests that need the full error-wrapping behavior.
-func executeCommand(args ...string) (stdout string, stderr string, err error) {
+func executeCommand(args ...string) (stdout, stderr string, err error) {
 	resetFlags()
 
 	// Capture stdout
@@ -76,7 +76,7 @@ func executeCommand(args ...string) (stdout string, stderr string, err error) {
 // executeCommandFull runs a command through the full Execute() wrapper,
 // which formats non-silent errors as JSON when --json is set.
 // Use this for tests that verify JSON error envelopes on validation errors.
-func executeCommandFull(args ...string) (stdout string, stderr string, err error) {
+func executeCommandFull(args ...string) (stdout, stderr string, err error) {
 	resetFlags()
 
 	oldStdout := os.Stdout
@@ -1613,9 +1613,9 @@ func TestStart_DryRun_ShowsCost(t *testing.T) {
 	if !strings.Contains(stderr, "DRY RUN") {
 		t.Errorf("expected 'DRY RUN' in stderr, got: %q", stderr)
 	}
-	// Check that cost appears in output (either stdout or stderr)
-	output := stdout + stderr
-	if !strings.Contains(output, "15") {
+	// Check that cost appears in combined output (either stdout or stderr)
+	combined := stdout + stderr
+	if !strings.Contains(combined, "15") {
 		t.Errorf("expected cost '15' in output, got stdout: %q, stderr: %q", stdout, stderr)
 	}
 }
@@ -4451,9 +4451,7 @@ func TestAuth_EnvParksterEmail_NotRecognized(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	orig := getCredentials
-	getCredentials = func() (string, string, auth.CredentialSource, error) {
-		return auth.GetCredentials()
-	}
+	getCredentials = auth.GetCredentials
 	t.Cleanup(func() { getCredentials = orig })
 
 	_, _, _, err := getCredentials()

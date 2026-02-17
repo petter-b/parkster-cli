@@ -67,7 +67,7 @@ func (c *Client) get(path string, extraParams url.Values) (*http.Response, error
 	}
 
 	reqURL := fmt.Sprintf("%s%s?%s", c.baseURL, path, params.Encode())
-	req, err := http.NewRequest("GET", reqURL, nil)
+	req, err := http.NewRequest("GET", reqURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
