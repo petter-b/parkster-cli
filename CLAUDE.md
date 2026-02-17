@@ -34,7 +34,7 @@ This skill ensures:
 **Always test:**
 - API client methods (use `httptest` for mocking)
 - Command logic (mock the API client)
-- Credential resolution (flags > env > keyring)
+- Credential resolution (keyring > file > env)
 - Error handling and edge cases
 
 **Test files:**
@@ -313,14 +313,14 @@ parkster auth login
 # Prompts for email, then password
 
 # Or use environment variables
-export PARKSTER_EMAIL=user@example.com
+export PARKSTER_USERNAME=user@example.com
 export PARKSTER_PASSWORD=password123
 
 # Or use flags
 parkster start --email user@example.com --password secret --zone 17429 --duration 30
 ```
 
-**Priority:** CLI flags > env vars > keyring (same as template)
+**Priority:** keyring > file > env vars
 
 ## Multi-Country Support
 
@@ -419,8 +419,8 @@ python3 test_api.py
 ```
 User: parkster start --zone 17429 --duration 30
 
-1. auth.GetEmail() → "user@example.com" (flag > env > keyring)
-2. auth.GetPassword() → "password123" (flag > env > keyring)
+1. auth.GetEmail() → "user@example.com" (keyring > file > env)
+2. auth.GetPassword() → "password123" (keyring > file > env)
 3. client = parkster.NewClient(email, password)
 4. user = client.Login()
    → GET /people/login (with device params + Basic Auth)

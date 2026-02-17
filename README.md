@@ -51,6 +51,7 @@ parkster stop
 | `parkster auth logout` | Remove stored credentials |
 | `parkster auth status` | Check authentication status |
 | `parkster version` | Show version information |
+| `parkster completion` | Generate shell completion scripts |
 
 ### Start Parking
 
@@ -59,7 +60,7 @@ parkster start --zone 17429 --duration 30
 parkster start --zone 17429 --duration 60 --car ABC123 --payment pay123
 ```
 
-Flags: `--zone` (required), `--duration` (default: 30), `--car`, `--payment`
+Flags: `--zone` (required), `--duration` or `--until`, `--car`, `--payment`, `--dry-run`, `--lat`, `--lon`, `--radius`
 
 If you have a single car and payment method, they are auto-selected.
 
@@ -69,7 +70,7 @@ If you have a single car and payment method, they are auto-selected.
 parkster stop                        # auto-stops if only one active
 parkster stop --parking-id 123456
 
-parkster change --duration 60         # extend by setting new end time
+parkster change --duration 60         # set end time to 60 min from now
 parkster change --until 18:30         # set end time to 18:30 today
 parkster change --duration 60 --parking-id 123456
 ```
@@ -78,9 +79,9 @@ parkster change --duration 60 --parking-id 123456
 
 Credentials are resolved in this order:
 
-1. CLI flags: `--username` and `--password`
-2. Environment variables: `PARKSTER_USERNAME` and `PARKSTER_PASSWORD`
-3. OS keychain (stored via `parkster auth login`)
+1. OS keychain (stored via `parkster auth login`)
+2. Plaintext file (`~/.config/parkster/credentials.json`)
+3. Environment variables: `PARKSTER_USERNAME` and `PARKSTER_PASSWORD`
 
 ## Environment Variables
 
