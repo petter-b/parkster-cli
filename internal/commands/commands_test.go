@@ -3209,8 +3209,9 @@ func TestAuthStatus_InvalidCredentials(t *testing.T) {
 	withMockClient(t, mock)
 
 	_, stderr, err := executeCommand("auth", "status")
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+	// Should return errSilent (non-zero exit) since auth failed
+	if !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent, got: %v", err)
 	}
 	if !strings.Contains(stderr, "Credentials found but authentication failed") {
 		t.Errorf("expected auth failure message in stderr, got: %q", stderr)
@@ -3268,8 +3269,9 @@ func TestAuthStatus_InvalidCredentials_JSON(t *testing.T) {
 	withMockClient(t, mock)
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+	// Should return errSilent (non-zero exit) since auth failed
+	if !errors.Is(err, errSilent) {
+		t.Fatalf("expected errSilent, got: %v", err)
 	}
 
 	var envelope output.Envelope
