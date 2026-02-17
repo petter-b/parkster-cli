@@ -119,14 +119,22 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runAuthRemove(cmd *cobra.Command, args []string) error {
+	mode := OutputMode()
+
 	if err := deleteCredentials(); err != nil {
 		if errors.Is(err, auth.ErrNoCredentials) {
+			if mode != output.ModeHuman {
+				return output.PrintSuccess(map[string]string{"message": "no credentials to remove"}, mode)
+			}
 			fmt.Fprintln(os.Stderr, "No credentials to remove")
 			return nil
 		}
 		return fmt.Errorf("failed to remove credentials: %w", err)
 	}
 
+	if mode != output.ModeHuman {
+		return output.PrintSuccess(map[string]string{"message": "credentials removed"}, mode)
+	}
 	fmt.Fprintln(os.Stderr, "Credentials removed")
 	return nil
 }

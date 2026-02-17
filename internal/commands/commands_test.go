@@ -3890,45 +3890,43 @@ func TestChange_Quiet_NoParkings_NoOutput(t *testing.T) {
 
 // --- Auth logout JSON tests ---
 
-// BUG: auth logout --json does not produce a JSON envelope on stdout.
-// It only writes "No credentials to remove" to stderr.
-// A JSON consumer gets no stdout output at all.
-func TestAuthLogout_NoCredentials_JSON_NoEnvelope(t *testing.T) {
+func TestAuthLogout_NoCredentials_JSON(t *testing.T) {
 	orig := deleteCredentials
 	deleteCredentials = func() error {
 		return auth.ErrNoCredentials
 	}
 	t.Cleanup(func() { deleteCredentials = orig })
 
-	stdout, stderr, err := executeCommand("auth", "logout", "--json")
+	stdout, _, err := executeCommand("auth", "logout", "--json")
 	if err != nil {
 		t.Fatalf("logout should not error, got: %v", err)
 	}
-	// Current behavior: no JSON envelope on stdout (this is a bug)
-	if stdout != "" {
-		t.Errorf("currently produces no stdout, but got: %q (if this fails, the bug was fixed!)", stdout)
+
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("failed to parse JSON envelope from stdout: %v\nstdout was: %q", err, stdout)
 	}
-	if !strings.Contains(stderr, "No credentials to remove") {
-		t.Errorf("expected message on stderr, got: %q", stderr)
+	if !env.Success {
+		t.Errorf("expected success=true, got false")
 	}
 }
 
-// BUG: auth logout --json with credentials produces no JSON envelope.
-func TestAuthLogout_WithCredentials_JSON_NoEnvelope(t *testing.T) {
+func TestAuthLogout_WithCredentials_JSON(t *testing.T) {
 	origDelete := deleteCredentials
 	deleteCredentials = func() error { return nil }
 	t.Cleanup(func() { deleteCredentials = origDelete })
 
-	stdout, stderr, err := executeCommand("auth", "logout", "--json")
+	stdout, _, err := executeCommand("auth", "logout", "--json")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
-	// Current behavior: no JSON envelope on stdout (this is a bug)
-	if stdout != "" {
-		t.Errorf("currently produces no stdout, but got: %q (if this fails, the bug was fixed!)", stdout)
+
+	var env output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("failed to parse JSON envelope from stdout: %v\nstdout was: %q", err, stdout)
 	}
-	if !strings.Contains(stderr, "Credentials removed") {
-		t.Errorf("expected message on stderr, got: %q", stderr)
+	if !env.Success {
+		t.Errorf("expected success=true, got false")
 	}
 }
 
