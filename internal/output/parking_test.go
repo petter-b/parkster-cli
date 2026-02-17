@@ -307,6 +307,54 @@ func TestFormatParkingChanged(t *testing.T) {
 	}
 }
 
+func TestFormatZoneInfo_ZeroRate_ShowsDescription(t *testing.T) {
+	zone := parkster.Zone{
+		ID:       1234,
+		Name:     "Test Zone",
+		ZoneCode: "99999",
+		FeeZone: parkster.FeeZone{
+			Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+			ParkingFees: []parkster.ParkingFee{
+				{AmountPerHour: 0, Description: "Per started hour: 15 SEK", StartTime: 480, EndTime: 1080},
+			},
+		},
+	}
+
+	out := FormatZoneInfo(zone)
+
+	// Should NOT show "0.00 kr/h"
+	if strings.Contains(out, "0.00") {
+		t.Errorf("should not show '0.00' for zero-rate zone, got: %q", out)
+	}
+	// Should show the description instead
+	if !strings.Contains(out, "Per started hour") {
+		t.Errorf("expected description for zero-rate zone, got: %q", out)
+	}
+}
+
+func TestFormatZoneInfo_ZeroRate_NoDescription_ShowsFallback(t *testing.T) {
+	zone := parkster.Zone{
+		ID:       1234,
+		Name:     "Test Zone",
+		ZoneCode: "99999",
+		FeeZone: parkster.FeeZone{
+			Currency: parkster.Currency{Code: "SEK", Symbol: "kr"},
+			ParkingFees: []parkster.ParkingFee{
+				{AmountPerHour: 0, Description: "", StartTime: 480, EndTime: 1080},
+			},
+		},
+	}
+
+	out := FormatZoneInfo(zone)
+
+	if strings.Contains(out, "0.00") {
+		t.Errorf("should not show '0.00' for zero-rate zone, got: %q", out)
+	}
+	if !strings.Contains(out, "see parking sign") {
+		t.Errorf("expected fallback text for zero-rate zone without description, got: %q", out)
+	}
+}
+
 func TestFormatMinutesSinceMidnight(t *testing.T) {
 	tests := []struct {
 		minutes  int

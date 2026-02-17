@@ -122,7 +122,13 @@ func FormatZoneInfo(z parkster.Zone) string {
 		if desc == "" {
 			desc = fmt.Sprintf("%s-%s", formatMinutesSinceMidnight(fee.StartTime), formatMinutesSinceMidnight(fee.EndTime))
 		}
-		fmt.Fprintf(&b, "Rate:     %.2f %s/h (%s)\n", fee.AmountPerHour, z.FeeZone.Currency.Symbol, desc)
+		if fee.AmountPerHour > 0 {
+			fmt.Fprintf(&b, "Rate:     %.2f %s/h (%s)\n", fee.AmountPerHour, z.FeeZone.Currency.Symbol, desc)
+		} else if fee.Description != "" {
+			fmt.Fprintf(&b, "Rate:     %s\n", fee.Description)
+		} else {
+			fmt.Fprintf(&b, "Rate:     (see parking sign for rates)\n")
+		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
