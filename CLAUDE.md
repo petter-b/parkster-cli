@@ -457,6 +457,16 @@ See design document for full list. Key additions:
 - `~/.config/parkster/config.yaml`
 - `preferred_car`, `preferred_payment`, `default_country`
 
+## Go Idioms (Learned)
+
+- **Auth headers:** Use `req.SetBasicAuth(user, pass)` — never manual `base64.StdEncoding.EncodeToString`
+- **Parameter shadowing:** Use `format` not `fmt_` when a parameter would shadow the `fmt` package
+- **Sentinel errors:** Give descriptive messages even if the error is caught before printing: `errors.New("silent error: already printed")` not `errors.New("")`
+- **Error wrapping:** Always `fmt.Errorf("context: %w", err)` — bare `return err` loses context
+- **Document asymmetries:** If GET retries but POST doesn't, add a comment explaining why
+- **Parent commands:** Don't manually handle "no args → help" for Cobra commands with subcommands — Cobra does this automatically
+- **DRY HTTP methods:** When POST/PUT share the same body, extract a shared `mutate(method, path, data)` helper
+
 ## Remember
 
 1. **Read ../cli-template/CLAUDE.md first** - it has the patterns
