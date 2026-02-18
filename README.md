@@ -16,7 +16,7 @@ make build
 make install
 ```
 
-Requires Go 1.22+.
+Requires Go 1.24+.
 
 ## Quick Start
 
