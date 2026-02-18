@@ -7,305 +7,76 @@
 - **Repository**: Private (planned to be made public later)
 - **Binary Name**: `parkster`
 
-**This project uses the CLI template from `../cli-template`. Read that file first for:**
-- General CLI patterns (commands, errors, output, auth)
-- KISS/YAGNI principles
-- AI agent friendliness
-- Testing patterns
+## Patterns Reference
+
+**For CLI patterns, testing, auth, and command checklists**, use the `designing-cli-commands` skill.
+It covers: command scaffolding, deps.go dependency injection, error handling (errSilent pattern), selection logic (auto-select when unambiguous), HTTP Basic Auth (Pattern C), TDD workflows, testing with httptest, credential management, and Cobra command checklists.
 
 This file contains **Parkster-specific** implementation details only.
-
-## Testing
-
-**CRITICAL: Use Test-Driven Development (TDD) for all new features.**
-
-### TDD Workflow
-
-**For ANY implementation task, use the `superpowers:test-driven-development` skill BEFORE writing code.**
-
-This skill ensures:
-1. Write failing test first
-2. Implement minimal code to pass
-3. Refactor with confidence
-4. Maintain high coverage
-
-### What to Test
-
-**Always test:**
-- API client methods (use `httptest` for mocking)
-- Command logic (mock the API client)
-- Credential resolution (keyring > file > env)
-- Error handling and edge cases
-
-**Test files:**
-- `internal/parkster/client_test.go` - API client with mock HTTP
-- `internal/parkster/types_test.go` - Type marshaling/unmarshaling
-- `internal/commands/*_test.go` - Command execution with mocks
-
-### Running Tests
-
-```bash
-# Run all tests
-make test
-
-# Run with coverage
-make test-cover
-# Opens coverage.html in browser
-
-# Run specific package
-go test ./internal/parkster/...
-
-# Run with verbose output
-go test -v ./...
-```
-
-### Coverage Targets
-
-- **Minimum**: 70% overall coverage
-- **Critical paths**: 90%+ (API client, auth, commands)
-- **Skip**: Main function, simple getters
-
-### Example: Testing API Client
-
-```go
-// internal/parkster/client_test.go
-func TestLogin_Success(t *testing.T) {
-    // Mock HTTP server
-    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Verify request
-        auth := r.Header.Get("Authorization")
-        if !strings.HasPrefix(auth, "Basic ") {
-            t.Fatal("Missing Basic auth")
-        }
-
-        // Return mock response
-        w.Header().Set("Content-Type", "application/json")
-        json.NewEncoder(w).Encode(User{ID: 1, Email: "test@example.com"})
-    }))
-    defer server.Close()
-
-    // Test with mock
-    client := NewClient("test@example.com", "password")
-    client.baseURL = server.URL // Allow override for testing
-
-    user, err := client.Login()
-    if err != nil {
-        t.Fatalf("Login failed: %v", err)
-    }
-    if user.ID != 1 {
-        t.Errorf("Expected ID 1, got %d", user.ID)
-    }
-}
-```
 
 ## Quick Reference
 
 - **API Documentation**: See [API.md](./API.md) for complete Parkster API reference
 - **Design Document**: See [docs/plans/2026-02-08-parkster-cli-mvp-design.md](./docs/plans/2026-02-08-parkster-cli-mvp-design.md)
-- **Template Guide**: See [../cli-template/CLAUDE.md](../cli-template/CLAUDE.md)
+
+## Testing
+
+**Use the `superpowers:test-driven-development` skill for all new features.**
+Test files live in `*_test.go` alongside implementation.
+Use build tags (`//go:build integration`) to separate unit and integration tests.
+
+```bash
+make test          # Run all tests
+make test-cover    # Run with coverage (opens browser)
+make test-integration  # Integration tests (sources .env)
+```
+
+See [TESTING.md](./TESTING.md) for the Python test suite that validates the API.
+
+**Test zones:**
+
+| Country | Zone ID | Location | Rate |
+|---------|---------|----------|------|
+| Sweden | 17429 | Ericsson Kista, Stockholm | 10 SEK/hour |
+| Germany | 7713 | Berlin (code 100028) | 3 EUR/hour |
+| Austria | 25624 | Salzburg (code 006001) | 2.20 EUR/hour |
 
 ## Parkster API Specifics
 
-### Critical Implementation Notes
-
 These are **Parkster-specific quirks** that differ from typical REST APIs:
 
-#### 1. Form-Encoded POST/PUT (NOT JSON)
+1. **Form-Encoded POST/PUT (NOT JSON)** — All mutations use `application/x-www-form-urlencoded`. The API rejects JSON bodies.
 
-All mutations use `application/x-www-form-urlencoded`, **not JSON**:
+2. **Device Parameters Required on EVERY Request** — Must mimic iOS app (`platform=ios`, `platformVersion=26.2`, `version=626`, `locale=en_US`, `clientTime=<unix_ms>`). API rejects custom platform identifiers. For GET: query string. For POST: form body.
 
-```go
-// ✅ CORRECT - Form-encoded
-data := url.Values{}
-data.Set("parkingZoneId", "7713")
-data.Set("timeout", "30")
-req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-req.Body = strings.NewReader(data.Encode())
+3. **Fee Zone ID Required to Start Parking** — Zone search doesn't include `feeZoneId`. Must fetch zone details via `GetZone()` first, then use `details.FeeZone.ID` when starting.
 
-// ❌ WRONG - JSON doesn't work!
-json.Marshal(payload)  // Parkster API rejects this
-```
+4. **Extend Parking Uses "offset" Not "timeout"** — The `offset` parameter *adds* minutes. Using `timeout` would set the absolute timeout.
 
-#### 2. Device Parameters Required on EVERY Request
-
-```go
-// Required on ALL requests (GET and POST)
-// IMPORTANT: Must mimic iOS app - API rejects custom platform identifiers
-platform=ios
-platformVersion=26.2
-version=626
-locale=en_US
-clientTime=<unix_timestamp_ms>
-
-// For GET: add to query string
-// For POST: ALSO add to form body
-```
-
-**Implementation:**
-```go
-// internal/parkster/client.go
-func (c *Client) deviceParams() url.Values {
-    params := url.Values{}
-    params.Set("platform", "ios")
-    params.Set("platformVersion", "26.2")
-    params.Set("version", "626")
-    params.Set("locale", "en_US")
-    params.Set("clientTime", fmt.Sprintf("%d", time.Now().UnixMilli()))
-    return params
-}
-```
-
-#### 3. Fee Zone ID Required to Start Parking
-
-Zone search returns basic info. **Must fetch zone details separately** to get `feeZoneId`:
-
-```go
-// ❌ WRONG - zone search doesn't include feeZoneId
-searchResp := client.SearchZones(lat, lon)
-client.StartParking(searchResp[0].ID, ...)  // Missing feeZoneId!
-
-// ✅ CORRECT - fetch details first
-searchResp := client.SearchZones(lat, lon)
-details := client.GetZone(searchResp[0].ID)
-client.StartParking(details.ID, details.FeeZone.ID, ...)  // Now have both IDs
-```
-
-#### 4. Extend Parking Uses "offset" Not "timeout"
-
-```go
-// ❌ WRONG - timeout would SET absolute timeout
-data.Set("timeout", "60")  // Would set timeout to 60 minutes total
-
-// ✅ CORRECT - offset ADDS minutes
-data.Set("offset", "30")   // Adds 30 more minutes
-```
+See `internal/parkster/client.go` for implementation.
 
 ## HTTP Basic Auth
 
-Parkster uses HTTP Basic Auth with email/password:
+Uses Pattern C from the `designing-cli-commands` skill.
+Credential priority: keyring > file > env vars.
+See `internal/auth/` for implementation.
 
-```go
-// internal/parkster/client.go
-func (c *Client) get(path string, params url.Values) (*http.Response, error) {
-    // Merge device params
-    for k, v := range c.deviceParams() {
-        params[k] = v
-    }
+## API Client Methods
 
-    url := fmt.Sprintf("%s%s?%s", BaseURL, path, params.Encode())
-    req, _ := http.NewRequest("GET", url, nil)
+See `internal/parkster/client.go` for full signatures.
 
-    // Basic Auth header
-    auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
-    req.Header.Set("Authorization", "Basic "+auth)
-    req.Header.Set("Accept", "application/json")
-
-    return c.http.Do(req)
-}
-
-func (c *Client) post(path string, data url.Values) (*http.Response, error) {
-    // Merge device params into BODY (not just query string!)
-    for k, v := range c.deviceParams() {
-        data[k] = v
-    }
-
-    url := fmt.Sprintf("%s%s", BaseURL, path)
-    req, _ := http.NewRequest("POST", url, strings.NewReader(data.Encode()))
-
-    // Basic Auth header
-    auth := base64.StdEncoding.EncodeToString([]byte(c.email + ":" + c.password))
-    req.Header.Set("Authorization", "Basic "+auth)
-    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-    return c.http.Do(req)
-}
-```
-
-## API Client Structure
-
-```go
-// internal/parkster/client.go
-package parkster
-
-const BaseURL = "https://api.parkster.se/api/mobile/v2"
-
-type Client struct {
-    http     *http.Client
-    email    string
-    password string
-}
-
-func NewClient(email, password string) *Client {
-    return &Client{
-        http:     &http.Client{Timeout: 30 * time.Second},
-        email:    email,
-        password: password,
-    }
-}
-
-// API methods (MVP)
-func (c *Client) Login() (*User, error)
-func (c *Client) GetActiveParkings() ([]Parking, error)
-func (c *Client) GetZone(zoneID int) (*Zone, error)
-func (c *Client) StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)
-func (c *Client) StopParking(parkingID int) (*Parking, error)
-func (c *Client) ExtendParking(parkingID, minutes int) (*Parking, error)
-```
+- `Login() (*User, error)`
+- `GetActiveParkings() ([]Parking, error)`
+- `GetZone(zoneID int) (*Zone, error)`
+- `StartParking(zoneID, feeZoneID, carID int, paymentID string, timeout int) (*Parking, error)`
+- `StopParking(parkingID int) (*Parking, error)`
+- `ExtendParking(parkingID, minutes int) (*Parking, error)`
 
 ## Data Types
 
-```go
-// internal/parkster/types.go
-package parkster
-
-type User struct {
-    ID              int              `json:"id"`
-    Email           string           `json:"email"`
-    AccountType     string           `json:"accountType"`
-    Cars            []Car            `json:"cars"`
-    PaymentAccounts []PaymentAccount `json:"paymentAccounts"`
-}
-
-type Car struct {
-    ID          int    `json:"id"`
-    LicenseNbr  string `json:"licenseNbr"`
-    CountryCode string `json:"countryCode"`
-}
-
-type PaymentAccount struct {
-    PaymentAccountID string `json:"paymentAccountId"`
-}
-
-type Zone struct {
-    ID      int     `json:"id"`
-    Name    string  `json:"name"`
-    FeeZone FeeZone `json:"feeZone"`
-}
-
-type FeeZone struct {
-    ID       int      `json:"id"`
-    Currency Currency `json:"currency"`
-}
-
-type Currency struct {
-    Code   string `json:"code"`
-    Symbol string `json:"symbol"`
-}
-
-type Parking struct {
-    ID          int     `json:"id"`
-    ParkingZone Zone    `json:"parkingZone"`
-    Car         Car     `json:"car"`
-    StartTime   string  `json:"startTime"`
-    Timeout     int     `json:"timeout"`
-    Cost        float64 `json:"cost"`
-    Status      string  `json:"status"`
-}
-```
+See `internal/parkster/types.go` for all struct definitions (User, Car, PaymentAccount, Zone, FeeZone, Currency, Parking).
 
 ## Authentication
-
-Parkster uses email/password credentials (Pattern C from template):
 
 ```bash
 # Store credentials
@@ -320,8 +91,6 @@ export PARKSTER_PASSWORD=password123
 parkster start --email user@example.com --password secret --zone 17429 --duration 30
 ```
 
-**Priority:** keyring > file > env vars
-
 ## Multi-Country Support
 
 Parkster operates in multiple countries with the same API:
@@ -329,8 +98,8 @@ Parkster operates in multiple countries with the same API:
 | Country | Code | Currency | Test Zone |
 |---------|------|----------|-----------|
 | Sweden | SE | SEK (kr) | 17429 (Ericsson Kista, Stockholm) |
-| Germany | DE | EUR (€) | 7713 (Berlin, code 100028) |
-| Austria | AT | EUR (€) | 25624 (Salzburg, code 006001) |
+| Germany | DE | EUR | 7713 (Berlin, code 100028) |
+| Austria | AT | EUR | 25624 (Salzburg, code 006001) |
 
 **License plate formats:**
 - SE: `ABC123` (3 letters + 3 digits)
@@ -359,13 +128,7 @@ parkster start \
   --json
 ```
 
-**Flow:**
-1. Get user profile (cars, payment accounts)
-2. Select car (flag or auto if only one)
-3. Select payment (flag or auto if only one)
-4. Get zone details (need feeZoneId)
-5. Start parking
-6. Output result
+See [Start Parking Workflow](#start-parking-workflow) below for the detailed API call trace.
 
 ### Stop Parking
 
@@ -397,24 +160,7 @@ parkster status
 parkster status --json
 ```
 
-## Testing
-
-See [TESTING.md](./TESTING.md) for Python test suite that validates the API.
-
-```bash
-# Run Python API tests
-cd /path/to/parkster-cli
-python3 test_api.py
-
-# Test zones from API.md
-# Sweden: 17429 (Ericsson Kista) - 10 SEK/hour
-# Germany: 7713 (Berlin) - €3/hour
-# Austria: 25624 (Salzburg) - €2.20/hour
-```
-
-## Common Workflows
-
-### Start Parking Workflow
+## Start Parking Workflow
 
 ```
 User: parkster start --zone 17429 --duration 30
@@ -436,27 +182,6 @@ User: parkster start --zone 17429 --duration 30
 9. output.PrintSuccess(parking, OutputMode())
 ```
 
-## Post-MVP Features
-
-See design document for full list. Key additions:
-
-**Zone management:**
-- `parkster zones search --lat 59.373 --lon 17.893`
-- `parkster zones info <zone-id>`
-
-**Car management:**
-- `parkster cars list`
-- `parkster cars add <license> --country SE`
-- `parkster cars remove <license>`
-
-**History & cost:**
-- `parkster history`
-- `parkster cost-estimate --zone 17429 --duration 30`
-
-**Config file:**
-- `~/.config/parkster/config.yaml`
-- `preferred_car`, `preferred_payment`, `default_country`
-
 ## Go Idioms (Learned)
 
 - **Auth headers:** Use `req.SetBasicAuth(user, pass)` — never manual `base64.StdEncoding.EncodeToString`
@@ -469,12 +194,12 @@ See design document for full list. Key additions:
 
 ## Remember
 
-1. **Read ../cli-template/CLAUDE.md first** - it has the patterns
+1. **Use `designing-cli-commands` skill** for CLI patterns, testing, and auth
 2. **Parkster quirks**:
    - Form-encoded POST (not JSON)
    - Device params everywhere
    - Fee zone ID required
    - Extend uses offset
-3. **See API.md** - complete API reference with examples
-4. **KISS/YAGNI** - don't add features until needed
+3. **See API.md** — complete API reference with examples
+4. **KISS/YAGNI** — don't add features until needed
 5. **Output flags**: Use `--json` and `-q`/`--quiet`, not `--format`
