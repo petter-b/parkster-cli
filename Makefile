@@ -84,11 +84,6 @@ lint:
 		echo "  or: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
 		exit 1; \
 	fi
-	@if command -v staticcheck >/dev/null 2>&1; then \
-		staticcheck ./...; \
-	else \
-		echo "staticcheck not installed (optional). Install with: go install honnef.co/go/tools/cmd/staticcheck@latest"; \
-	fi
 
 ## fmt: Format code
 fmt:

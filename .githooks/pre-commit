@@ -19,18 +19,12 @@ fi
 echo "  Running go vet..."
 go vet ./...
 
-# 3. Run linter
+# 3. Run linter (includes staticcheck)
 echo "  Running golangci-lint..."
 golangci-lint run
 
-# 4. Run staticcheck (if available)
-if command -v staticcheck >/dev/null 2>&1; then
-    echo "  Running staticcheck..."
-    staticcheck ./...
-fi
-
-# 5. Run tests
+# 4. Run tests
 echo "  Running tests..."
-go test ./...
+go test -race ./...
 
 echo "All checks passed."
