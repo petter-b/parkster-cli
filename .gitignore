@@ -15,6 +15,9 @@ venv/
 *.swp
 *.swo
 
+# Local overrides
+*.local.*
+
 # OS
 .DS_Store
 Thumbs.db
