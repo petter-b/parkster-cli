@@ -496,6 +496,28 @@ func TestStatusMsg_QuietFalse(t *testing.T) {
 	}
 }
 
+// --- Version flag tests ---
+
+func TestVersionFlag_Long(t *testing.T) {
+	stdout, _, err := executeCommand("--version")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "parkster") {
+		t.Error("--version should contain 'parkster'")
+	}
+}
+
+func TestVersionFlag_Short(t *testing.T) {
+	stdout, _, err := executeCommand("-v")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "parkster") {
+		t.Error("-v should contain 'parkster'")
+	}
+}
+
 // --- Unknown command ---
 
 func TestUnknownCommand_Error(t *testing.T) {

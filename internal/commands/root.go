@@ -47,6 +47,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output as JSON with envelope")
 	rootCmd.PersistentFlags().BoolVarP(&quietFlag, "quiet", "q", false, "Suppress status messages on stderr")
 
+	rootCmd.Version = Version
+	rootCmd.InitDefaultVersionFlag()
+	rootCmd.Flags().Lookup("version").Shorthand = "v"
+
 	// Environment variable bindings
 	if os.Getenv("PARKSTER_DEBUG") == "1" || os.Getenv("PARKSTER_DEBUG") == "true" {
 		debug = true
