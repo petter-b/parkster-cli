@@ -36,5 +36,8 @@ flows.*
 coverage.out
 coverage.html
 
+# Worktrees
+.worktrees/
+
 # Temporary/unknown files
 -
