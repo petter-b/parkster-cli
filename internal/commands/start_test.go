@@ -522,6 +522,39 @@ func TestStart_DryRun_CostEstimateFails_StillSucceeds(t *testing.T) {
 	}
 }
 
+func TestStart_DryRun_OutputUsesZoneCode(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{
+			ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista",
+			FeeZone: parkster.FeeZone{ID: 27545},
+		},
+		estimateCostResp: &parkster.CostEstimate{Amount: 15.0, Currency: "SEK"},
+	}
+	withMockClient(t, mock)
+
+	stdout, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30",
+		"--lat", "59.373", "--lon", "17.893", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+
+	combined := stdout + stderr
+	// Should show zone code, not numeric ID
+	if !strings.Contains(combined, "80500") {
+		t.Errorf("expected zone code '80500' in dry-run output, got: %q", combined)
+	}
+	if strings.Contains(combined, "17429") {
+		t.Errorf("should not show numeric zone ID '17429' in dry-run output, got: %q", combined)
+	}
+}
+
 func TestStart_MultipleCars_HumanOutput_NoInternalIDs(t *testing.T) {
 	setAuth(t)
 

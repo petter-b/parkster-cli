@@ -216,7 +216,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		debugLog("dry-run mode: estimating cost")
 
 		result := DryRunResult{
-			Zone:     fmt.Sprintf("%d", zone.ID),
+			Zone:     zone.ZoneCode,
 			ZoneCode: zone.ZoneCode,
 			ZoneName: zone.Name,
 			Car:      selectedCar.LicenseNbr,
@@ -235,7 +235,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		}
 
 		statusMsg("DRY RUN: Would start parking")
-		statusMsg("  Zone: %s %s (%d)", zone.ZoneCode, zone.Name, zone.ID)
+		statusMsg("  Zone: %s %s", zone.ZoneCode, zone.Name)
 		statusMsg("  Car: %s", selectedCar.LicenseNbr)
 		statusMsg("  Duration: %d minutes", timeout)
 		if result.Cost > 0 {
