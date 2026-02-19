@@ -25,7 +25,7 @@ Requires Go 1.24+.
 parkster auth login
 
 # Start a 30-minute parking session
-parkster start --zone 17429 --duration 30
+parkster start --zone 80500 --duration 30 --lat 59.373 --lon 17.893
 
 # Check active parkings
 parkster status
@@ -56,8 +56,8 @@ parkster stop
 ### Start Parking
 
 ```bash
-parkster start --zone 17429 --duration 30
-parkster start --zone 17429 --duration 60 --car ABC123 --payment pay123
+parkster start --zone 80500 --duration 30 --lat 59.373 --lon 17.893
+parkster start --zone 80500 --duration 60 --lat 59.373 --lon 17.893 --car ABC123
 ```
 
 Flags: `--zone` (required), `--duration` or `--until`, `--car`, `--payment`, `--dry-run`, `--lat`, `--lon`, `--radius`
@@ -71,7 +71,7 @@ parkster stop                        # auto-stops if only one active
 parkster stop --parking-id 123456
 
 parkster change --duration 60         # set end time to 60 min from now
-parkster change --until 18:30         # set end time to 18:30 today
+parkster change --until 18:30         # set end time (also accepts HH.MM or HH)
 parkster change --duration 60 --parking-id 123456
 ```
 
@@ -96,6 +96,8 @@ Credentials are resolved in this order:
 ```bash
 parkster status                  # human-readable (default)
 parkster status --json           # JSON with envelope
+parkster status --quiet          # suppress status messages
+parkster status --debug          # show debug output on stderr
 ```
 
 ## Uninstall
