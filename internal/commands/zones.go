@@ -24,6 +24,7 @@ Returns zones at your exact position and nearby zones within the search radius.
 Examples:
   parkster zones search --lat 59.373 --lon 17.893
   parkster zones search --lat 52.52 --lon 13.40 --radius 500 --json`,
+	Args: cobra.NoArgs,
 	RunE: runZonesSearch,
 }
 

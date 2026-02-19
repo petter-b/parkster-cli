@@ -575,6 +575,18 @@ func TestZonesSearch_LatOnly_Error(t *testing.T) {
 	}
 }
 
+func TestZonesSearch_ExtraArgs_Error(t *testing.T) {
+	mock := &mockAPI{
+		searchZonesResp: &parkster.SearchResult{},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "search", "--lat", "59.373", "--lon", "17.893", "extra")
+	if err == nil {
+		t.Fatal("expected error for extra positional args on zones search")
+	}
+}
+
 func TestZonesSearch_LonOnly_Error(t *testing.T) {
 	_, _, err := executeCommand("zones", "search", "--lon", "17.893")
 	if err == nil {
