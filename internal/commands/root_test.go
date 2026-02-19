@@ -388,12 +388,12 @@ func TestQuiet_SuppressesParkingStarted(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Test Zone", FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, Cost: 0},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Test Zone", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, Cost: 0},
 	}
 	withMockClient(t, mock)
 
-	stdout, stderr, err := executeCommand("--quiet", "start", "--zone", "17429", "--duration", "30")
+	stdout, stderr, err := executeCommand("--quiet", "start", "--zone", "80500", "--duration", "30", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}

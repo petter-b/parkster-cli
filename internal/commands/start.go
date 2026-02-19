@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -55,34 +54,16 @@ func init() {
 	_ = startCmd.MarkFlagRequired("zone")
 }
 
-// resolveZone attempts to resolve a zone from either a zone code or numeric ID.
-// If lat/lon are provided, it tries zone code lookup first via GetZoneByCode.
-// Otherwise, it tries to parse the input as a numeric ID and calls GetZone.
-func resolveZone(client parkster.API, zoneInput string, lat, lon float64, radiusMeters int) (*parkster.Zone, error) {
-	// If lat/lon provided, try zone code lookup first
-	if lat != 0 && lon != 0 {
-		zone, err := client.GetZoneByCode(zoneInput, lat, lon, radiusMeters)
-		if err == nil {
-			return zone, nil
-		}
-		debugLog("zone code lookup failed: %v, trying as numeric ID", err)
+// resolveZone looks up a zone by sign code using GetZoneByCode.
+// Requires lat/lon coordinates for the location search.
+func resolveZone(client parkster.API, zoneCode string, lat, lon float64, radiusMeters int) (*parkster.Zone, error) {
+	if lat == 0 && lon == 0 {
+		return nil, fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneCode)
 	}
 
-	// Fallback: try parsing as numeric ID
-	zoneID, parseErr := strconv.Atoi(zoneInput)
-	if parseErr != nil {
-		if lat == 0 && lon == 0 {
-			return nil, fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneInput)
-		}
-		return nil, fmt.Errorf("zone %q not found as code or ID", zoneInput)
-	}
-
-	zone, err := client.GetZone(zoneID)
+	zone, err := client.GetZoneByCode(zoneCode, lat, lon, radiusMeters)
 	if err != nil {
-		if lat == 0 && lon == 0 {
-			return nil, fmt.Errorf("zone not found: %w\nHint: if %q is a sign code, add --lat and --lon for lookup", err, zoneInput)
-		}
-		return nil, fmt.Errorf("zone not found: %w", err)
+		return nil, fmt.Errorf("zone %q not found: %w", zoneCode, err)
 	}
 
 	return zone, nil
@@ -221,7 +202,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	debugLog("selected payment: %s", selectedPayment.PaymentAccountID)
 
-	// Resolve zone (by code or ID)
+	// Resolve zone by sign code
 	debugLog("resolving zone: %s", zoneInput)
 	zone, err := resolveZone(client, zoneInput, lat, lon, radius)
 	if err != nil {

@@ -53,7 +53,7 @@ func TestStart_SingleCarSinglePayment_Success(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
 		startParkingResp: &parkster.Parking{
 			ID:          999,
 			ParkingZone: parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"},
@@ -65,7 +65,7 @@ func TestStart_SingleCarSinglePayment_Success(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	_, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -131,12 +131,12 @@ func TestStart_CarFlagSelectsCorrectCar(t *testing.T) {
 			},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "DEF456")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--car", "DEF456", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success with --car flag, got: %v", err)
 	}
@@ -220,12 +220,12 @@ func TestStart_PaymentFlagSelectsCorrect(t *testing.T) {
 				{PaymentAccountID: "pay2"},
 			},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "pay2")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--payment", "pay2", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success with --payment flag, got: %v", err)
 	}
@@ -240,11 +240,11 @@ func TestStart_GetZoneFails_Error(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneErr: errors.New("zone not found"),
+		getZoneByCodeErr: errors.New("zone not found"),
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "99999", "--duration", "30")
+	_, _, err := executeCommand("start", "--zone", "99999", "--duration", "30", "--lat", "59.373", "--lon", "17.893")
 	if err == nil {
 		t.Fatal("expected error when GetZone fails, got nil")
 	}
@@ -262,12 +262,12 @@ func TestStart_StartParkingFails_Error(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:     &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingErr: errors.New("server error"),
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingErr:   errors.New("server error"),
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.373", "--lon", "17.893")
 	if err == nil {
 		t.Fatal("expected error when StartParking fails, got nil")
 	}
@@ -303,30 +303,6 @@ func TestStart_WithZoneCode_Success(t *testing.T) {
 	}
 }
 
-func TestStart_WithNumericID_Success(t *testing.T) {
-	setAuth(t)
-
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID:              1,
-			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
-			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
-		},
-		getZoneByCodeErr: errors.New("code lookup failed"),
-		getZoneResp: &parkster.Zone{
-			ID:      17429,
-			FeeZone: parkster.FeeZone{ID: 27545},
-		},
-		startParkingResp: &parkster.Parking{ID: 999},
-	}
-	withMockClient(t, mock)
-
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
-	if err != nil {
-		t.Fatalf("expected success with numeric ID, got: %v", err)
-	}
-}
-
 func TestStart_ZoneCodeNotFound_Error(t *testing.T) {
 	setAuth(t)
 
@@ -337,7 +313,6 @@ func TestStart_ZoneCodeNotFound_Error(t *testing.T) {
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
 		getZoneByCodeErr: errors.New("zone not found"),
-		getZoneErr:       errors.New("zone not found"),
 	}
 	withMockClient(t, mock)
 
@@ -347,29 +322,6 @@ func TestStart_ZoneCodeNotFound_Error(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "zone") && !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected zone/not found in error, got: %v", err)
-	}
-}
-
-func TestStart_ZoneCodeWithoutLatLon_FallsBackToID(t *testing.T) {
-	setAuth(t)
-
-	mock := &mockAPI{
-		loginResp: &parkster.User{
-			ID:              1,
-			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
-			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
-		},
-		getZoneResp: &parkster.Zone{
-			ID:      17429,
-			FeeZone: parkster.FeeZone{ID: 27545},
-		},
-		startParkingResp: &parkster.Parking{ID: 999},
-	}
-	withMockClient(t, mock)
-
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30")
-	if err != nil {
-		t.Fatalf("expected success falling back to ID lookup, got: %v", err)
 	}
 }
 
@@ -388,12 +340,12 @@ func TestStart_Until_Success(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--until", untilStr)
+	_, _, err := executeCommand("start", "--zone", "80500", "--until", untilStr, "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success with --until, got: %v", err)
 	}
@@ -446,7 +398,7 @@ func TestStart_DryRun_ShowsCost(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp: &parkster.Zone{
+		getZoneByCodeResp: &parkster.Zone{
 			ID:       17429,
 			ZoneCode: "80500",
 			Name:     "Ericsson Kista",
@@ -466,7 +418,7 @@ func TestStart_DryRun_ShowsCost(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run")
+	stdout, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--dry-run", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success with dry-run, got: %v", err)
 	}
@@ -489,7 +441,7 @@ func TestStart_DryRun_JSON(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp: &parkster.Zone{
+		getZoneByCodeResp: &parkster.Zone{
 			ID:       17429,
 			ZoneCode: "80500",
 			Name:     "Ericsson Kista",
@@ -505,7 +457,7 @@ func TestStart_DryRun_JSON(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run", "--json")
+	stdout, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--dry-run", "--json", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -551,7 +503,7 @@ func TestStart_DryRun_CostEstimateFails_StillSucceeds(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp: &parkster.Zone{
+		getZoneByCodeResp: &parkster.Zone{
 			ID:       17429,
 			ZoneCode: "80500",
 			Name:     "Ericsson Kista",
@@ -561,7 +513,7 @@ func TestStart_DryRun_CostEstimateFails_StillSucceeds(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	_, stderr, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--dry-run")
+	_, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--dry-run", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success even when cost estimate fails, got: %v", err)
 	}
@@ -661,12 +613,12 @@ func TestStart_CarFlag_MatchesByName(t *testing.T) {
 			},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "Volkswagen")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--car", "Volkswagen", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected --car to match by name, got: %v", err)
 	}
@@ -683,12 +635,12 @@ func TestStart_CarFlag_CaseInsensitive(t *testing.T) {
 			},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "volkswagen")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--car", "volkswagen", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected case-insensitive match, got: %v", err)
 	}
@@ -705,12 +657,12 @@ func TestStart_CarFlag_CaseInsensitivePlate(t *testing.T) {
 			},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--car", "abc123")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--car", "abc123", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected case-insensitive plate match, got: %v", err)
 	}
@@ -730,12 +682,12 @@ func TestStart_PaymentFlag_MatchesByNumericPart(t *testing.T) {
 				{PaymentAccountID: "AT_WORK:72624"},
 			},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "9999999")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--payment", "9999999", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected --payment to match numeric suffix, got: %v", err)
 	}
@@ -753,12 +705,12 @@ func TestStart_PaymentFlag_MatchesByTypePrefix(t *testing.T) {
 				{PaymentAccountID: "AT_WORK:72624"},
 			},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "PRIVATE")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--payment", "PRIVATE", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected --payment to match type prefix, got: %v", err)
 	}
@@ -775,12 +727,12 @@ func TestStart_PaymentFlag_FullID_StillWorks(t *testing.T) {
 				{PaymentAccountID: "PRIVATE:9999999"},
 			},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 27545}},
-		startParkingResp: &parkster.Parking{ID: 999},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
 	withMockClient(t, mock)
 
-	_, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--payment", "PRIVATE:9999999")
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--payment", "PRIVATE:9999999", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected full payment ID to still work, got: %v", err)
 	}
@@ -877,12 +829,12 @@ func TestStart_DryRun_WithUntil(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp:      &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
-		estimateCostResp: &parkster.CostEstimate{Amount: 20.0, Currency: "SEK"},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		estimateCostResp:  &parkster.CostEstimate{Amount: 20.0, Currency: "SEK"},
 	}
 	withMockClient(t, mock)
 
-	stdout, stderr, err := executeCommand("start", "--zone", "17429", "--until", untilStr, "--dry-run")
+	stdout, stderr, err := executeCommand("start", "--zone", "80500", "--until", untilStr, "--dry-run", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -943,7 +895,7 @@ func TestStart_SingleCarSinglePayment_JSON(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
 		},
-		getZoneResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
 		startParkingResp: &parkster.Parking{
 			ID:          999,
 			ParkingZone: parkster.Zone{ID: 17429, ZoneCode: "80500"},
@@ -955,7 +907,7 @@ func TestStart_SingleCarSinglePayment_JSON(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("start", "--zone", "17429", "--duration", "30", "--json")
+	stdout, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--json", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -1187,7 +1139,6 @@ func TestStart_NumericZone_NoLatLon_HintsAboutCoordinates(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 1, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PAY:1"}},
 		},
-		getZoneErr: fmt.Errorf("Parking zone not found."),
 	}
 	withMockClient(t, mock)
 
@@ -1246,7 +1197,6 @@ func TestStart_NoCars_ErrorMessage(t *testing.T) {
 			Cars:            []parkster.Car{},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PAY:1"}},
 		},
-		getZoneResp: &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 1}},
 	}
 	withMockClient(t, mock)
 
@@ -1267,7 +1217,6 @@ func TestStart_NoPaymentAccounts_ErrorMessage(t *testing.T) {
 			Cars:            []parkster.Car{{ID: 1, LicenseNbr: "ABC123"}},
 			PaymentAccounts: []parkster.PaymentAccount{},
 		},
-		getZoneResp: &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 1}},
 	}
 	withMockClient(t, mock)
 
@@ -1288,7 +1237,6 @@ func TestStart_NoCars_JSON_ErrorEnvelope(t *testing.T) {
 			Cars:            []parkster.Car{},
 			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "PAY:1"}},
 		},
-		getZoneResp: &parkster.Zone{ID: 17429, FeeZone: parkster.FeeZone{ID: 1}},
 	}
 	withMockClient(t, mock)
 
@@ -1501,20 +1449,6 @@ func TestParseUntil_NoWrapWhenFuture(t *testing.T) {
 
 // --- resolveZone unit tests ---
 
-func TestResolveZone_ByNumericID_Success(t *testing.T) {
-	mock := &mockAPI{
-		getZoneResp: &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
-	}
-
-	zone, err := resolveZone(mock, "17429", 0, 0, 0)
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if zone.ID != 17429 {
-		t.Errorf("expected zone ID 17429, got %d", zone.ID)
-	}
-}
-
 func TestResolveZone_ByCode_WithLatLon_Success(t *testing.T) {
 	mock := &mockAPI{
 		getZoneByCodeResp: &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
@@ -1530,9 +1464,7 @@ func TestResolveZone_ByCode_WithLatLon_Success(t *testing.T) {
 }
 
 func TestResolveZone_ByCode_WithoutLatLon_ErrorHints(t *testing.T) {
-	mock := &mockAPI{
-		getZoneErr: fmt.Errorf("Parking zone not found."),
-	}
+	mock := &mockAPI{}
 
 	// Non-numeric input without lat/lon should hint about --lat/--lon
 	_, err := resolveZone(mock, "ABC80500", 0, 0, 0)
@@ -1544,48 +1476,16 @@ func TestResolveZone_ByCode_WithoutLatLon_ErrorHints(t *testing.T) {
 	}
 }
 
-func TestResolveZone_NumericID_NotFound_WithoutLatLon_Hints(t *testing.T) {
+func TestResolveZone_CodeNotFound_Error(t *testing.T) {
 	mock := &mockAPI{
-		getZoneErr: fmt.Errorf("Parking zone not found."),
+		getZoneByCodeErr: fmt.Errorf("zone code \"XXXXX\" not found near 59.3730,17.8930"),
 	}
 
-	_, err := resolveZone(mock, "80500", 0, 0, 0)
+	_, err := resolveZone(mock, "XXXXX", 59.373, 17.893, 500)
 	if err == nil {
-		t.Fatal("expected error")
+		t.Fatal("expected error when zone code not found")
 	}
-	if !strings.Contains(err.Error(), "--lat") || !strings.Contains(err.Error(), "--lon") {
-		t.Errorf("expected hint about --lat/--lon, got: %v", err)
-	}
-}
-
-func TestResolveZone_NumericID_NotFound_WithLatLon_NoHint(t *testing.T) {
-	mock := &mockAPI{
-		getZoneByCodeErr: fmt.Errorf("not found as code"),
-		getZoneErr:       fmt.Errorf("Parking zone not found."),
-	}
-
-	_, err := resolveZone(mock, "99999", 59.373, 17.893, 500)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	// Should NOT suggest --lat/--lon since they were already provided
-	if strings.Contains(err.Error(), "--lat") {
-		t.Errorf("should not hint about --lat/--lon when they're already provided, got: %v", err)
-	}
-}
-
-func TestResolveZone_CodeFallsBackToID(t *testing.T) {
-	// Zone code lookup fails, but the input also parses as a numeric ID
-	mock := &mockAPI{
-		getZoneByCodeErr: fmt.Errorf("code not found"),
-		getZoneResp:      &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
-	}
-
-	zone, err := resolveZone(mock, "17429", 59.373, 17.893, 500)
-	if err != nil {
-		t.Fatalf("expected fallback to numeric ID, got: %v", err)
-	}
-	if zone.ID != 17429 {
-		t.Errorf("expected zone ID 17429, got %d", zone.ID)
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' in error, got: %v", err)
 	}
 }

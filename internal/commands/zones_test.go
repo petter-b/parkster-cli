@@ -375,9 +375,9 @@ func TestZonesInfo_Success_JSON(t *testing.T) {
 	}
 }
 
-func TestZonesInfo_NumericID_WithoutLatLon_Success(t *testing.T) {
+func TestZonesInfo_WithLatLon_Success(t *testing.T) {
 	mock := &mockAPI{
-		getZoneResp: &parkster.Zone{
+		getZoneByCodeResp: &parkster.Zone{
 			ID:       17429,
 			Name:     "Ericsson Kista",
 			ZoneCode: "80500",
@@ -386,9 +386,9 @@ func TestZonesInfo_NumericID_WithoutLatLon_Success(t *testing.T) {
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommand("zones", "info", "17429")
+	stdout, _, err := executeCommand("zones", "info", "80500", "--lat", "59.373", "--lon", "17.893")
 	if err != nil {
-		t.Fatalf("expected success with numeric zone ID, got: %v", err)
+		t.Fatalf("expected success with zone code + lat/lon, got: %v", err)
 	}
 	if !strings.Contains(stdout, "Ericsson Kista") {
 		t.Errorf("expected zone name in output, got: %q", stdout)
