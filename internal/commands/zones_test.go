@@ -398,10 +398,7 @@ func TestZonesInfo_WithLatLon_Success(t *testing.T) {
 func TestZonesInfo_NonNumericCode_MissingLatLon_Error(t *testing.T) {
 	_, _, err := executeCommand("zones", "info", "ABC123")
 	if err == nil {
-		t.Fatal("expected error for non-numeric code without --lat/--lon, got nil")
-	}
-	if !strings.Contains(err.Error(), "lat") || !strings.Contains(err.Error(), "lon") {
-		t.Errorf("expected error about lat/lon required, got: %v", err)
+		t.Fatal("expected error for missing --lat/--lon, got nil")
 	}
 }
 
@@ -415,7 +412,6 @@ func TestZonesInfo_MissingArg_Error(t *testing.T) {
 func TestZonesInfo_NotFound_Error(t *testing.T) {
 	mock := &mockAPI{
 		getZoneByCodeErr: errors.New("zone not found"),
-		getZoneErr:       errors.New("zone not found"),
 	}
 	withMockClient(t, mock)
 
@@ -479,18 +475,12 @@ func TestZonesInfo_LatWithoutLon_Error(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for --lat without --lon, got nil")
 	}
-	if !strings.Contains(err.Error(), "together") {
-		t.Errorf("expected 'together' in error, got: %v", err)
-	}
 }
 
 func TestZonesInfo_LonWithoutLat_Error(t *testing.T) {
 	_, _, err := executeCommand("zones", "info", "80500", "--lon", "17.89")
 	if err == nil {
 		t.Fatal("expected error for --lon without --lat, got nil")
-	}
-	if !strings.Contains(err.Error(), "together") {
-		t.Errorf("expected 'together' in error, got: %v", err)
 	}
 }
 
@@ -501,9 +491,6 @@ func TestZonesInfo_LatOnly_Error(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for --lat without --lon")
 	}
-	if !strings.Contains(err.Error(), "--lat and --lon must be used together") {
-		t.Errorf("unexpected error: %v", err)
-	}
 }
 
 func TestZonesInfo_LonOnly_Error(t *testing.T) {
@@ -511,33 +498,22 @@ func TestZonesInfo_LonOnly_Error(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for --lon without --lat")
 	}
-	if !strings.Contains(err.Error(), "--lat and --lon must be used together") {
-		t.Errorf("unexpected error: %v", err)
-	}
 }
 
 func TestZonesInfo_NumericInput_NoLatLon_HintsAboutCoordinates(t *testing.T) {
-	mock := &mockAPI{
-		getZoneErr: fmt.Errorf("Parking zone not found."),
-	}
-	withMockClient(t, mock)
-
 	_, _, err := executeCommand("zones", "info", "80500")
 	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !strings.Contains(err.Error(), "--lat") || !strings.Contains(err.Error(), "--lon") {
-		t.Errorf("expected hint about --lat/--lon in error, got: %v", err)
+		t.Fatal("expected error for missing --lat/--lon")
 	}
 }
 
 func TestZonesInfo_NotFound_JSON_ErrorEnvelope(t *testing.T) {
 	mock := &mockAPI{
-		getZoneErr: fmt.Errorf("Parking zone not found."),
+		getZoneByCodeErr: fmt.Errorf("zone not found"),
 	}
 	withMockClient(t, mock)
 
-	stdout, _, err := executeCommandFull("zones", "info", "99999", "--json")
+	stdout, _, err := executeCommandFull("zones", "info", "99999", "--lat", "59.0", "--lon", "17.0", "--json")
 	if err == nil {
 		t.Fatal("expected error for zone not found")
 	}

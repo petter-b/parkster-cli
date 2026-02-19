@@ -34,7 +34,6 @@ var zonesInfoCmd = &cobra.Command{
 	Long: `Look up a parking zone by its sign code (the code on the parking sign).
 
 Requires --lat and --lon flags to search for the zone code near your location.
-Numeric zone IDs are also accepted as a fallback but are deprecated.
 
 Examples:
   parkster zones info 80500 --lat 59.373 --lon 17.893
@@ -58,6 +57,8 @@ func init() {
 	// Flags for zones info
 	zonesInfoCmd.Flags().Float64("lat", 0, "Latitude (required for sign code lookup)")
 	zonesInfoCmd.Flags().Float64("lon", 0, "Longitude (required for sign code lookup)")
+	_ = zonesInfoCmd.MarkFlagRequired("lat")
+	_ = zonesInfoCmd.MarkFlagRequired("lon")
 }
 
 func runZonesSearch(cmd *cobra.Command, args []string) error {
@@ -112,12 +113,6 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	zoneInput := args[0]
 	lat, _ := cmd.Flags().GetFloat64("lat")
 	lon, _ := cmd.Flags().GetFloat64("lon")
-
-	hasLat := cmd.Flags().Changed("lat")
-	hasLon := cmd.Flags().Changed("lon")
-	if hasLat != hasLon {
-		return fmt.Errorf("--lat and --lon must be used together")
-	}
 
 	client := newAPIClient("", "")
 
