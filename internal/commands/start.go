@@ -58,12 +58,12 @@ func init() {
 // Requires lat/lon coordinates for the location search.
 func resolveZone(client parkster.API, zoneCode string, lat, lon float64, radiusMeters int) (*parkster.Zone, error) {
 	if lat == 0 && lon == 0 {
-		return nil, fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneCode)
+		return nil, &ExitError{Code: ExitUsage, Err: fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneCode)}
 	}
 
 	zone, err := client.GetZoneByCode(zoneCode, lat, lon, radiusMeters)
 	if err != nil {
-		return nil, fmt.Errorf("zone %q not found: %w", zoneCode, err)
+		return nil, &ExitError{Code: ExitNotFound, Err: fmt.Errorf("zone %q not found: %w", zoneCode, err)}
 	}
 
 	return zone, nil
@@ -84,7 +84,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	hasLat := cmd.Flags().Changed("lat")
 	hasLon := cmd.Flags().Changed("lon")
 	if hasLat != hasLon {
-		return fmt.Errorf("--lat and --lon must be used together")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("--lat and --lon must be used together")}
 	}
 
 	// Validate: exactly one of --duration or --until
@@ -92,13 +92,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 	hasUntil := until != ""
 
 	if hasDuration && hasUntil {
-		return fmt.Errorf("--duration and --until are mutually exclusive")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("--duration and --until are mutually exclusive")}
 	}
 	if !hasDuration && !hasUntil {
-		return fmt.Errorf("one of --duration or --until is required")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("one of --duration or --until is required")}
 	}
 	if hasDuration && duration <= 0 {
-		return fmt.Errorf("--duration must be a positive number of minutes")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("--duration must be a positive number of minutes")}
 	}
 
 	// Compute timeout minutes
@@ -108,7 +108,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	} else {
 		target, err := parseUntil(until)
 		if err != nil {
-			return err
+			return &ExitError{Code: ExitUsage, Err: err}
 		}
 		timeout = int(time.Until(target).Minutes())
 		if timeout < 1 {
@@ -127,7 +127,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	user, err := client.Login()
 	if err != nil {
-		return fmt.Errorf("failed to authenticate: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to authenticate: %w", err)}
 	}
 
 	debugLog("found %d cars and %d payment accounts", len(user.Cars), len(user.PaymentAccounts))
@@ -144,21 +144,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if selectedCar == nil {
-			return fmt.Errorf("car not found: %s", carFlag)
+			return &ExitError{Code: ExitNotFound, Err: fmt.Errorf("car not found: %s", carFlag)}
 		}
 	} else if len(user.Cars) == 1 {
 		selectedCar = &user.Cars[0]
 	} else if len(user.Cars) == 0 {
-		return fmt.Errorf("no cars registered, add a car first")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("no cars registered, add a car first")}
 	} else {
 		msg := "multiple cars found, use --car flag to specify (license plate or name)"
 		if OutputMode() != output.ModeHuman {
 			fmt.Fprintln(os.Stderr, output.FormatCarList(user.Cars))
 			output.PrintError(msg, OutputMode())
-			return errSilent
+			return &ExitError{Code: ExitUsage, Silent: true}
 		}
 		fmt.Println(output.FormatCarList(user.Cars))
-		return fmt.Errorf("%s", msg)
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("%s", msg)}
 	}
 
 	debugLog("selected car: %s", selectedCar.LicenseNbr)
@@ -183,21 +183,21 @@ func runStart(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if selectedPayment == nil {
-			return fmt.Errorf("payment account not found: %s", paymentFlag)
+			return &ExitError{Code: ExitNotFound, Err: fmt.Errorf("payment account not found: %s", paymentFlag)}
 		}
 	} else if len(user.PaymentAccounts) == 1 {
 		selectedPayment = &user.PaymentAccounts[0]
 	} else if len(user.PaymentAccounts) == 0 {
-		return fmt.Errorf("no payment methods configured, add a payment method first")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("no payment methods configured, add a payment method first")}
 	} else {
 		msg := "multiple payment accounts found, use --payment flag to specify"
 		if OutputMode() != output.ModeHuman {
 			fmt.Fprintln(os.Stderr, output.FormatPaymentList(user.PaymentAccounts))
 			output.PrintError(msg, OutputMode())
-			return errSilent
+			return &ExitError{Code: ExitUsage, Silent: true}
 		}
 		fmt.Println(output.FormatPaymentList(user.PaymentAccounts))
-		return fmt.Errorf("%s", msg)
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("%s", msg)}
 	}
 
 	debugLog("selected payment: %s", selectedPayment.PaymentAccountID)
@@ -249,7 +249,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	debugLog("starting parking for %d minutes", timeout)
 	parking, err := client.StartParking(zone.ID, zone.FeeZone.ID, selectedCar.ID, selectedPayment.PaymentAccountID, timeout)
 	if err != nil {
-		return fmt.Errorf("failed to start parking: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to start parking: %w", err)}
 	}
 
 	mode := OutputMode()

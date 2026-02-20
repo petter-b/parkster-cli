@@ -120,3 +120,95 @@ func TestSelectParking_Multiple_ExitCode(t *testing.T) {
 		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
 	}
 }
+
+func TestStart_ZoneNotFound_ExitCode(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeErr: fmt.Errorf("zone not found"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "99999", "--duration", "30", "--lat", "59.37", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for zone not found")
+	}
+	if ExitCode(err) != ExitNotFound {
+		t.Errorf("expected exit code %d (not found), got %d", ExitNotFound, ExitCode(err))
+	}
+}
+
+func TestStart_MultipleCars_ExitCode(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			Cars: []parkster.Car{
+				{ID: 100, LicenseNbr: "ABC123"},
+				{ID: 200, LicenseNbr: "DEF456"},
+			},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.37", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for multiple cars")
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
+	}
+}
+
+func TestStart_InvalidDuration_ExitCode(t *testing.T) {
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "-5", "--lat", "59.37", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for negative duration")
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
+	}
+}
+
+func TestStart_LoginFails_ExitCode(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginErr: fmt.Errorf("network timeout"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.37", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for login failure")
+	}
+	if ExitCode(err) != ExitAPI {
+		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
+
+func TestStart_StartParkingFails_ExitCode(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingErr:   fmt.Errorf("server error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.37", "--lon", "17.89")
+	if err == nil {
+		t.Fatal("expected error for start parking failure")
+	}
+	if ExitCode(err) != ExitAPI {
+		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
