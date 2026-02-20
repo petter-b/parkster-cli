@@ -1102,19 +1102,38 @@ func TestStart_NegativeDuration_JSON_Error(t *testing.T) {
 	}
 }
 
-func TestStart_UntilInPast_JSON_Error(t *testing.T) {
+// parseUntil wraps past times to tomorrow, so --until 00:01 at any time
+// after midnight proceeds normally (not rejected as past time).
+func TestStart_UntilInPast_WrapsToTomorrow(t *testing.T) {
 	if time.Now().Hour() == 0 && time.Now().Minute() <= 1 {
-		t.Skip("too close to midnight to test past time")
+		t.Skip("too close to midnight to test past time wrapping")
 	}
 	setAuth(t)
 
-	stdout, _, err := executeCommandFull("start", "--zone", "17429", "--until", "00:01", "--json")
-	if err == nil {
-		t.Fatal("expected error for past time")
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
 	}
+	withMockClient(t, mock)
+
+	// 00:01 is in the past, but parseUntil wraps to tomorrow.
+	// The command should succeed (no "past time" error).
+	stdout, _, err := executeCommand("start", "--zone", "80500", "--until", "00:01", "--lat", "59.37", "--lon", "17.89", "--json")
+	if err != nil {
+		t.Fatalf("--until 00:01 should wrap to tomorrow, got error: %v", err)
+	}
+
 	var envelope output.Envelope
 	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
-		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+		t.Errorf("output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success: true in JSON envelope")
 	}
 }
 
@@ -1521,4 +1540,74 @@ func TestResolveZone_CodeNotFound_Error(t *testing.T) {
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected 'not found' in error, got: %v", err)
 	}
+}
+
+// --- Dry-run does NOT call StartParking ---
+
+func TestStart_DryRun_DoesNotStartParking(t *testing.T) {
+	setAuth(t)
+
+	startCalled := false
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
+		estimateCostResp:  &parkster.CostEstimate{Amount: 10.0, Currency: "SEK"},
+	}
+	// Wrap StartParking to detect if it's called
+	origNew := newAPIClient
+	newAPIClient = func(u, p string) parkster.API {
+		return &startTracker{mockAPI: mock, called: &startCalled}
+	}
+	t.Cleanup(func() { newAPIClient = origNew })
+
+	_, _, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.37", "--lon", "17.89", "--dry-run")
+	if err != nil {
+		t.Fatalf("dry-run should succeed, got: %v", err)
+	}
+	if startCalled {
+		t.Error("--dry-run should NOT call StartParking")
+	}
+}
+
+// --- Debug mode outputs to stderr ---
+
+func TestStart_Debug_LogsSteps(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+		},
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp:  &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--lat", "59.37", "--lon", "17.89", "--debug")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	for _, want := range []string{"authenticating", "selected car", "resolving zone"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("expected %q in debug output, got: %q", want, stderr)
+		}
+	}
+}
+
+// startTracker wraps mockAPI to detect StartParking calls.
+type startTracker struct {
+	*mockAPI
+	called *bool
+}
+
+func (s *startTracker) StartParking(a, b, c int, d string, e int) (*parkster.Parking, error) {
+	*s.called = true
+	return s.mockAPI.StartParking(a, b, c, d, e)
 }

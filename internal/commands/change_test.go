@@ -3,7 +3,6 @@ package commands
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -473,41 +472,64 @@ func TestChange_NegativeDuration_JSON_Error(t *testing.T) {
 	}
 }
 
-func TestChange_UntilInPast_JSON_Error(t *testing.T) {
+// parseUntil wraps past times to tomorrow, so --until 00:01 at any time
+// after midnight should still succeed (targeting tomorrow).
+func TestChange_UntilInPast_WrapsToTomorrow(t *testing.T) {
 	if time.Now().Hour() == 0 && time.Now().Minute() <= 1 {
-		t.Skip("too close to midnight to test past time")
+		t.Skip("too close to midnight to test past time wrapping")
 	}
 
-	stdout, _, err := executeCommandFull("change", "--until", "00:01", "--json")
-	if err == nil {
-		t.Fatal("expected error for past time")
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{{ID: 100, CheckInTime: time.Now().UnixMilli()}},
+		},
+		extendResp: &parkster.Parking{ID: 100},
 	}
-	var envelope output.Envelope
-	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
-		t.Errorf("error output should be valid JSON: %v\nstdout: %s", err, stdout)
+	withMockClient(t, mock)
+
+	// 00:01 is in the past, but parseUntil wraps it to tomorrow.
+	// The command should succeed (no error about past time).
+	_, _, err := executeCommand("change", "--until", "00:01")
+	if err != nil {
+		t.Fatalf("--until 00:01 should wrap to tomorrow, got error: %v", err)
+	}
+
+	// Verify the offset is positive (targeting tomorrow, not today)
+	if mock.extendMinutes <= 0 {
+		t.Errorf("expected positive offset (wrap to tomorrow), got: %d", mock.extendMinutes)
 	}
 }
 
-// --- Edge case: change --until with past time ---
-
-func TestChange_UntilInPast_NoAuthNeeded(t *testing.T) {
-	// The past-time check should happen before authentication
-	env_u := os.Getenv("PARKSTER_USERNAME")
-	env_p := os.Getenv("PARKSTER_PASSWORD")
-	t.Setenv("PARKSTER_USERNAME", "")
-	t.Setenv("PARKSTER_PASSWORD", "")
-	t.Cleanup(func() {
-		_ = os.Setenv("PARKSTER_USERNAME", env_u)
-		_ = os.Setenv("PARKSTER_PASSWORD", env_p)
-	})
-
-	_, _, err := executeCommand("change", "--until", "00:01")
-	if err == nil {
-		t.Fatal("expected error for past time")
+func TestChange_UntilInPast_JSON_WrapsToTomorrow(t *testing.T) {
+	if time.Now().Hour() == 0 && time.Now().Minute() <= 1 {
+		t.Skip("too close to midnight to test past time wrapping")
 	}
-	// Should be a time error, not an auth error
-	if strings.Contains(err.Error(), "authenticated") {
-		t.Errorf("expected time validation error before auth, got: %v", err)
+
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:                1,
+			ShortTermParkings: []parkster.Parking{{ID: 100, CheckInTime: time.Now().UnixMilli()}},
+		},
+		extendResp: &parkster.Parking{ID: 100},
+	}
+	withMockClient(t, mock)
+
+	stdout, _, err := executeCommand("change", "--until", "00:01", "--json")
+	if err != nil {
+		t.Fatalf("--until 00:01 should wrap to tomorrow in JSON mode, got error: %v", err)
+	}
+
+	var envelope output.Envelope
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Errorf("output should be valid JSON: %v\nstdout: %s", err, stdout)
+	}
+	if !envelope.Success {
+		t.Error("expected success: true in JSON envelope")
 	}
 }
 
