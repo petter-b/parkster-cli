@@ -65,19 +65,42 @@ func init() {
 	}
 }
 
-// Execute runs the root command, formatting errors based on output mode
+// Execute runs the root command, formatting errors based on output mode.
+// It wraps unrecognised errors as ExitUsage (for Cobra flag/usage errors)
+// and propagates ExitError codes to the caller for os.Exit.
 func Execute() error {
 	err := rootCmd.Execute()
-	if err != nil && !errors.Is(err, errSilent) {
-		mode := OutputMode()
-		// If flag parsing failed, jsonFlag may not be set even though
-		// the user passed --json. Check os.Args as a fallback.
-		if mode == output.ModeHuman && hasJSONFlag(os.Args) {
-			mode = output.ModeJSON
-		}
-		output.PrintError(err.Error(), mode)
+	if err == nil {
+		return nil
 	}
-	return err
+
+	// Already an ExitError (from command handlers) — check if we need to print
+	var exitErr *ExitError
+	if errors.As(err, &exitErr) {
+		if !exitErr.Silent {
+			mode := OutputMode()
+			if mode == output.ModeHuman && hasJSONFlag(os.Args) {
+				mode = output.ModeJSON
+			}
+			output.PrintError(err.Error(), mode)
+		}
+		return err
+	}
+
+	// errSilent — keep compatibility until fully replaced
+	if errors.Is(err, errSilent) {
+		return err
+	}
+
+	// Cobra flag/usage errors — wrap as ExitUsage
+	mode := OutputMode()
+	// If flag parsing failed, jsonFlag may not be set even though
+	// the user passed --json. Check os.Args as a fallback.
+	if mode == output.ModeHuman && hasJSONFlag(os.Args) {
+		mode = output.ModeJSON
+	}
+	output.PrintError(err.Error(), mode)
+	return &ExitError{Code: ExitUsage, Err: err, Silent: true}
 }
 
 // hasJSONFlag checks os.Args for --json. Used as a fallback when Cobra flag

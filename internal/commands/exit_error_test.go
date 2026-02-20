@@ -54,3 +54,14 @@ func TestExitCode_ExtractsCode(t *testing.T) {
 		})
 	}
 }
+
+func TestExecute_ExitError_PreservesCode(t *testing.T) {
+	// Trigger a usage error (unknown flag) — Cobra returns these directly
+	_, _, err := executeCommandFull("--bogus-flag")
+	if err == nil {
+		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
+	}
+}
