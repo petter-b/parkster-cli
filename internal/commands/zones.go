@@ -67,15 +67,15 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 	radius, _ := cmd.Flags().GetInt("radius")
 
 	if radius < 0 {
-		return fmt.Errorf("--radius must be non-negative")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("--radius must be non-negative")}
 	}
 
 	// Validate GPS coordinates
 	if lat < -90 || lat > 90 {
-		return fmt.Errorf("invalid latitude: must be between -90 and 90")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("invalid latitude: must be between -90 and 90")}
 	}
 	if lon < -180 || lon > 180 {
-		return fmt.Errorf("invalid longitude: must be between -180 and 180")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("invalid longitude: must be between -180 and 180")}
 	}
 
 	client := newAPIClient("", "")
@@ -84,7 +84,7 @@ func runZonesSearch(cmd *cobra.Command, args []string) error {
 
 	result, err := client.SearchZones(lat, lon, radius)
 	if err != nil {
-		return fmt.Errorf("zone search failed: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("zone search failed: %w", err)}
 	}
 
 	// Merge both arrays

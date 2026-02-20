@@ -63,12 +63,12 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "Enter username (email or phone): ")
 	username, err := reader.ReadString('\n')
 	if err != nil {
-		return fmt.Errorf("failed to read username: %w", err)
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("failed to read username: %w", err)}
 	}
 	username = strings.TrimSpace(username)
 
 	if username == "" {
-		return fmt.Errorf("username cannot be empty")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("username cannot be empty")}
 	}
 
 	fmt.Fprintf(os.Stderr, "Enter password: ")
@@ -78,30 +78,30 @@ func runAuthAdd(cmd *cobra.Command, args []string) error {
 		pw, err := term.ReadPassword(fd)
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
-			return fmt.Errorf("failed to read password: %w", err)
+			return &ExitError{Code: ExitUsage, Err: fmt.Errorf("failed to read password: %w", err)}
 		}
 		password = string(pw)
 	} else {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			return fmt.Errorf("failed to read password: %w", err)
+			return &ExitError{Code: ExitUsage, Err: fmt.Errorf("failed to read password: %w", err)}
 		}
 		password = strings.TrimSpace(line)
 	}
 
 	if password == "" {
-		return fmt.Errorf("password cannot be empty")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("password cannot be empty")}
 	}
 
 	// Validate credentials against API before storing
 	client := newAPIClient(username, password)
 	if _, err := client.Login(); err != nil {
-		return fmt.Errorf("invalid credentials: %w", err)
+		return &ExitError{Code: ExitAuth, Err: fmt.Errorf("invalid credentials: %w", err)}
 	}
 
 	source, err := saveCredentials(username, password)
 	if err != nil {
-		return fmt.Errorf("failed to store credentials: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to store credentials: %w", err)}
 	}
 
 	mode := OutputMode()
@@ -132,7 +132,7 @@ func runAuthRemove(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, "No credentials to remove")
 			return nil
 		}
-		return fmt.Errorf("failed to remove credentials: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to remove credentials: %w", err)}
 	}
 
 	if mode != output.ModeHuman {

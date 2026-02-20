@@ -70,13 +70,13 @@ func runChange(cmd *cobra.Command, args []string) error {
 	hasDuration := cmd.Flags().Changed("duration")
 	hasUntil := until != ""
 	if hasDuration && hasUntil {
-		return fmt.Errorf("--duration and --until are mutually exclusive")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("--duration and --until are mutually exclusive")}
 	}
 	if !hasDuration && !hasUntil {
-		return fmt.Errorf("one of --duration or --until is required")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("one of --duration or --until is required")}
 	}
 	if hasDuration && duration <= 0 {
-		return fmt.Errorf("--duration must be a positive number of minutes")
+		return &ExitError{Code: ExitUsage, Err: fmt.Errorf("--duration must be a positive number of minutes")}
 	}
 
 	// Parse --until early (before auth) to fail fast on invalid input
@@ -87,7 +87,7 @@ func runChange(cmd *cobra.Command, args []string) error {
 		var parseErr error
 		desiredEnd, parseErr = parseUntil(until)
 		if parseErr != nil {
-			return parseErr
+			return &ExitError{Code: ExitUsage, Err: parseErr}
 		}
 	}
 
@@ -107,7 +107,7 @@ func runChange(cmd *cobra.Command, args []string) error {
 
 	parking, err := client.ExtendParking(selected.ID, offsetMinutes)
 	if err != nil {
-		return fmt.Errorf("failed to change parking: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to change parking: %w", err)}
 	}
 
 	// Merge updated fields from extend response into the original parking

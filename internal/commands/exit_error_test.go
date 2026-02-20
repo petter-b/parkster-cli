@@ -3,9 +3,11 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/petter-b/parkster-cli/internal/auth"
 	"github.com/petter-b/parkster-cli/internal/parkster"
 )
 
@@ -210,5 +212,156 @@ func TestStart_StartParkingFails_ExitCode(t *testing.T) {
 	}
 	if ExitCode(err) != ExitAPI {
 		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
+
+func TestStop_APIError_ExitCode(t *testing.T) {
+	setAuth(t)
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 100, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+		stopParkingErr: fmt.Errorf("server error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if ExitCode(err) != ExitAPI {
+		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
+
+func TestChange_InvalidDuration_ExitCode(t *testing.T) {
+	_, _, err := executeCommand("change", "--duration", "-5")
+	if err == nil {
+		t.Fatal("expected error for negative duration")
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
+	}
+}
+
+func TestChange_APIError_ExitCode(t *testing.T) {
+	setAuth(t)
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 100, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+		extendErr: fmt.Errorf("server error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("change", "--duration", "60")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if ExitCode(err) != ExitAPI {
+		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
+
+func TestStatus_APIError_ExitCode(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginErr: fmt.Errorf("network timeout"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("status")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if ExitCode(err) != ExitAPI {
+		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
+
+func TestZonesSearch_InvalidLat_ExitCode(t *testing.T) {
+	_, _, err := executeCommand("zones", "search", "--lat", "91.0", "--lon", "0.0")
+	if err == nil {
+		t.Fatal("expected error for invalid latitude")
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
+	}
+}
+
+func TestZonesSearch_APIError_ExitCode(t *testing.T) {
+	mock := &mockAPI{
+		searchZonesErr: fmt.Errorf("network error"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("zones", "search", "--lat", "59.0", "--lon", "17.0")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if ExitCode(err) != ExitAPI {
+		t.Errorf("expected exit code %d (API), got %d", ExitAPI, ExitCode(err))
+	}
+}
+
+func TestAuthLogin_InvalidCredentials_ExitCode(t *testing.T) {
+	mock := &mockAPI{
+		loginErr: fmt.Errorf("authentication failed (status 401)"),
+	}
+	withMockClient(t, mock)
+
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	_, _ = w.WriteString("baduser\nbadpass\n")
+	_ = w.Close()
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	_, _, err := executeCommand("auth", "login")
+	if err == nil {
+		t.Fatal("expected error for invalid credentials")
+	}
+	if ExitCode(err) != ExitAuth {
+		t.Errorf("expected exit code %d (auth), got %d", ExitAuth, ExitCode(err))
+	}
+}
+
+func TestAuthStatus_NoCredentials_ExitCode(t *testing.T) {
+	orig := getCredentials
+	getCredentials = func() (string, string, auth.CredentialSource, error) {
+		return "", "", "", fmt.Errorf("no credentials")
+	}
+	t.Cleanup(func() { getCredentials = orig })
+
+	_, _, err := executeCommand("auth", "status")
+	if err == nil {
+		t.Fatal("expected error for missing credentials")
+	}
+	if ExitCode(err) != ExitAuth {
+		t.Errorf("expected exit code %d (auth), got %d", ExitAuth, ExitCode(err))
+	}
+}
+
+func TestAuthStatus_InvalidCredentials_ExitCode(t *testing.T) {
+	setAuth(t)
+	mock := &mockAPI{
+		loginErr: fmt.Errorf("authentication failed"),
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("auth", "status")
+	if err == nil {
+		t.Fatal("expected error for invalid credentials")
+	}
+	if ExitCode(err) != ExitAuth {
+		t.Errorf("expected exit code %d (auth), got %d", ExitAuth, ExitCode(err))
 	}
 }

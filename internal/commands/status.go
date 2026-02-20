@@ -35,7 +35,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	user, err := client.Login()
 	if err != nil {
-		return fmt.Errorf("failed to authenticate: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to authenticate: %w", err)}
 	}
 
 	parkings := user.ShortTermParkings

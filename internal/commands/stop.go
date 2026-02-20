@@ -39,7 +39,7 @@ func runStop(cmd *cobra.Command, args []string) error {
 
 	parking, err := client.StopParking(selected.ID)
 	if err != nil {
-		return fmt.Errorf("failed to stop parking: %w", err)
+		return &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to stop parking: %w", err)}
 	}
 
 	mode := OutputMode()
