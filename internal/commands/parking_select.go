@@ -24,7 +24,7 @@ func selectParking(parkingIDFlag int) (*parkster.Parking, parkster.API, error) {
 
 	user, err := client.Login()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to authenticate: %w", err)
+		return nil, nil, &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to authenticate: %w", err)}
 	}
 
 	parkings := user.ShortTermParkings
@@ -46,7 +46,7 @@ func selectParking(parkingIDFlag int) (*parkster.Parking, parkster.API, error) {
 				return &parkings[i], client, nil
 			}
 		}
-		return nil, nil, fmt.Errorf("parking session not found: %d", parkingIDFlag)
+		return nil, nil, &ExitError{Code: ExitNotFound, Err: fmt.Errorf("parking session not found: %d", parkingIDFlag)}
 	}
 
 	if len(parkings) == 1 {
@@ -58,8 +58,8 @@ func selectParking(parkingIDFlag int) (*parkster.Parking, parkster.API, error) {
 	if OutputMode() != output.ModeHuman {
 		fmt.Fprintln(os.Stderr, output.FormatParkingList(parkings))
 		output.PrintError(msg, OutputMode())
-		return nil, nil, errSilent
+		return nil, nil, &ExitError{Code: ExitUsage, Silent: true}
 	}
 	fmt.Println(output.FormatParkingList(parkings))
-	return nil, nil, fmt.Errorf("%s", msg)
+	return nil, nil, &ExitError{Code: ExitUsage, Err: fmt.Errorf("%s", msg)}
 }

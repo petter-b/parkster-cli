@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/petter-b/parkster-cli/internal/parkster"
 )
 
 func TestExitError_Code(t *testing.T) {
@@ -67,6 +70,51 @@ func TestExecute_ExitError_PreservesCode(t *testing.T) {
 	_, _, err := executeCommandFull("--bogus-flag")
 	if err == nil {
 		t.Fatal("expected error for unknown flag")
+	}
+	if ExitCode(err) != ExitUsage {
+		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
+	}
+}
+
+func TestSelectParking_NotFound_ExitCode(t *testing.T) {
+	setAuth(t)
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 100, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop", "--parking-id", "999")
+	if err == nil {
+		t.Fatal("expected error for parking not found")
+	}
+	if ExitCode(err) != ExitNotFound {
+		t.Errorf("expected exit code %d (not found), got %d", ExitNotFound, ExitCode(err))
+	}
+}
+
+func TestSelectParking_Multiple_ExitCode(t *testing.T) {
+	setAuth(t)
+	now := time.Now()
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID: 1,
+			ShortTermParkings: []parkster.Parking{
+				{ID: 100, ParkingZone: parkster.Zone{ZoneCode: "80500"}, Car: parkster.Car{LicenseNbr: "ABC123"}, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(30 * time.Minute).UnixMilli()},
+				{ID: 200, ParkingZone: parkster.Zone{ZoneCode: "80501"}, Car: parkster.Car{LicenseNbr: "DEF456"}, CheckInTime: now.UnixMilli(), TimeoutTime: now.Add(60 * time.Minute).UnixMilli()},
+			},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("stop")
+	if err == nil {
+		t.Fatal("expected error for multiple parkings")
 	}
 	if ExitCode(err) != ExitUsage {
 		t.Errorf("expected exit code %d (usage), got %d", ExitUsage, ExitCode(err))
