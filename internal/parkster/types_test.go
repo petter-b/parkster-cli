@@ -358,6 +358,42 @@ func TestZoneSearchItem_JSONUnmarshal(t *testing.T) {
 	}
 }
 
+// --- Favorite zone type test ---
+
+func TestUser_UnmarshalFavoriteZones(t *testing.T) {
+	raw := `{
+		"id": 1,
+		"email": "test@example.com",
+		"accountType": "NEUTRAL",
+		"cars": [],
+		"paymentAccounts": [],
+		"shortTermParkings": [],
+		"favoriteZones": [
+			{"id": 17429, "name": "Ericsson", "zoneCode": "80500", "city": {"name": "Kista"}}
+		]
+	}`
+	var user User
+	if err := json.Unmarshal([]byte(raw), &user); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if len(user.FavoriteZones) != 1 {
+		t.Fatalf("expected 1 favorite zone, got %d", len(user.FavoriteZones))
+	}
+	fz := user.FavoriteZones[0]
+	if fz.ID != 17429 {
+		t.Errorf("expected zone ID 17429, got %d", fz.ID)
+	}
+	if fz.Name != "Ericsson" {
+		t.Errorf("expected zone name Ericsson, got %s", fz.Name)
+	}
+	if fz.ZoneCode != "80500" {
+		t.Errorf("expected zone code 80500, got %s", fz.ZoneCode)
+	}
+	if fz.City.Name != "Kista" {
+		t.Errorf("expected city Kista, got %s", fz.City.Name)
+	}
+}
+
 // --- Cost estimate type test ---
 
 func TestCostEstimate_JSONUnmarshal(t *testing.T) {

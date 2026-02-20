@@ -8,6 +8,15 @@ type User struct {
 	Cars              []Car            `json:"cars"`
 	PaymentAccounts   []PaymentAccount `json:"paymentAccounts"`
 	ShortTermParkings []Parking        `json:"shortTermParkings"`
+	FavoriteZones     []FavoriteZone   `json:"favoriteZones"`
+}
+
+// FavoriteZone represents a user's saved parking zone
+type FavoriteZone struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	ZoneCode string `json:"zoneCode"`
+	City     City   `json:"city"`
 }
 
 // CarPersonalization contains user-assigned vehicle details
