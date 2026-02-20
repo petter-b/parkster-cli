@@ -147,7 +147,7 @@ func statusMsg(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
-// authRequiredError prints a friendly no-auth message and returns errSilent.
+// authRequiredError prints a friendly no-auth message and returns ExitAuth.
 // Used by commands that require credentials.
 func authRequiredError() error {
 	mode := OutputMode()
@@ -156,5 +156,5 @@ func authRequiredError() error {
 	} else {
 		fmt.Fprintln(os.Stderr, "Not authenticated. Use 'parkster auth login' or set PARKSTER_USERNAME/PARKSTER_PASSWORD.")
 	}
-	return errSilent
+	return &ExitError{Code: ExitAuth, Silent: true}
 }

@@ -55,6 +55,13 @@ func TestExitCode_ExtractsCode(t *testing.T) {
 	}
 }
 
+func TestAuthRequiredError_ExitCode(t *testing.T) {
+	err := authRequiredError()
+	if ExitCode(err) != ExitAuth {
+		t.Errorf("expected exit code %d (auth), got %d", ExitAuth, ExitCode(err))
+	}
+}
+
 func TestExecute_ExitError_PreservesCode(t *testing.T) {
 	// Trigger a usage error (unknown flag) — Cobra returns these directly
 	_, _, err := executeCommandFull("--bogus-flag")

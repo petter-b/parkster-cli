@@ -165,10 +165,10 @@ func runAuthStatus(cmd *cobra.Command, args []string) error {
 		// Credentials exist but are invalid
 		if mode != output.ModeHuman {
 			output.PrintError(fmt.Sprintf("credentials found but authentication failed (%s)", source), mode)
-			return errSilent
+			return &ExitError{Code: ExitAuth, Silent: true}
 		}
 		fmt.Fprintf(os.Stderr, "Credentials found but authentication failed (%s)\n", source)
-		return errSilent
+		return &ExitError{Code: ExitAuth, Silent: true}
 	}
 
 	status := authStatus{Authenticated: true, Username: username, Source: string(source)}

@@ -3,7 +3,6 @@
 package commands
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -76,9 +75,9 @@ func TestKeychain_AuthLoginLogoutCycle(t *testing.T) {
 
 	// Verify auth status shows not authenticated
 	_, stderr, err = executeCommand("auth", "status")
-	// authRequiredError returns errSilent
-	if err != nil && !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent or nil, got: %v", err)
+	// authRequiredError returns ExitAuth
+	if err != nil && ExitCode(err) != ExitAuth {
+		t.Fatalf("expected ExitAuth or nil, got: %v (code=%d)", err, ExitCode(err))
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("after logout, should show 'Not authenticated', got: %q", stderr)

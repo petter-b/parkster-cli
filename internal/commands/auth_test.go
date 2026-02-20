@@ -42,9 +42,9 @@ func TestAuthStatus_WithoutCredentials_NotAuthenticated(t *testing.T) {
 	t.Cleanup(func() { getCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "status")
-	// authRequiredError() returns errSilent
-	if err != nil && !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent or nil, got: %v", err)
+	// authRequiredError() returns ExitAuth
+	if err != nil && ExitCode(err) != ExitAuth {
+		t.Fatalf("expected ExitAuth or nil, got: %v (code=%d)", err, ExitCode(err))
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
@@ -137,9 +137,9 @@ func TestAuthStatus_NotAuthenticated_Human(t *testing.T) {
 	t.Cleanup(func() { getCredentials = origGet })
 
 	_, stderr, err := executeCommand("auth", "status")
-	// authRequiredError returns errSilent
-	if err != nil && !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent or nil, got: %v", err)
+	// authRequiredError returns ExitAuth
+	if err != nil && ExitCode(err) != ExitAuth {
+		t.Fatalf("expected ExitAuth or nil, got: %v (code=%d)", err, ExitCode(err))
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
@@ -172,9 +172,9 @@ func TestAuthStatus_InvalidCredentials(t *testing.T) {
 	withMockClient(t, mock)
 
 	_, stderr, err := executeCommand("auth", "status")
-	// Should return errSilent (non-zero exit) since auth failed
-	if !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent, got: %v", err)
+	// Should return ExitAuth (non-zero exit) since auth failed
+	if err == nil || ExitCode(err) != ExitAuth {
+		t.Fatalf("expected ExitAuth, got: %v", err)
 	}
 	if !strings.Contains(stderr, "Credentials found but authentication failed") {
 		t.Errorf("expected auth failure message in stderr, got: %q", stderr)
@@ -189,9 +189,9 @@ func TestAuthStatus_NoCredentials(t *testing.T) {
 	t.Cleanup(func() { getCredentials = orig })
 
 	_, stderr, err := executeCommand("auth", "status")
-	// authRequiredError returns errSilent which is suppressed
-	if err != nil && !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent or nil, got: %v", err)
+	// authRequiredError returns ExitAuth
+	if err != nil && ExitCode(err) != ExitAuth {
+		t.Fatalf("expected ExitAuth or nil, got: %v (code=%d)", err, ExitCode(err))
 	}
 	if !strings.Contains(stderr, "Not authenticated") {
 		t.Errorf("expected 'Not authenticated' in stderr, got: %q", stderr)
@@ -232,9 +232,9 @@ func TestAuthStatus_InvalidCredentials_JSON(t *testing.T) {
 	withMockClient(t, mock)
 
 	stdout, _, err := executeCommand("auth", "status", "--json")
-	// Should return errSilent (non-zero exit) since auth failed
-	if !errors.Is(err, errSilent) {
-		t.Fatalf("expected errSilent, got: %v", err)
+	// Should return ExitAuth (non-zero exit) since auth failed
+	if err == nil || ExitCode(err) != ExitAuth {
+		t.Fatalf("expected ExitAuth, got: %v", err)
 	}
 
 	var envelope output.Envelope
