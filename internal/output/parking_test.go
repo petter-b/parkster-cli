@@ -355,6 +355,76 @@ func TestFormatZoneInfo_ZeroRate_NoDescription_ShowsFallback(t *testing.T) {
 	}
 }
 
+func TestFormatProfile_Basic(t *testing.T) {
+	cars := []parkster.Car{
+		{ID: 100, LicenseNbr: "ABC123", CountryCode: "SE", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+	}
+	payments := []parkster.PaymentAccount{
+		{PaymentAccountID: "PRIVATE:9999999"},
+	}
+	var favorites []parkster.FavoriteZone
+
+	out := FormatProfile("+46700000000", "NEUTRAL", cars, payments, favorites)
+
+	if !strings.Contains(out, "Account:   +46700000000") {
+		t.Errorf("expected account line, got: %q", out)
+	}
+	if !strings.Contains(out, "Type:      NEUTRAL") {
+		t.Errorf("expected type line, got: %q", out)
+	}
+	if !strings.Contains(out, "Volkswagen - ABC123") {
+		t.Errorf("expected car in output, got: %q", out)
+	}
+	if !strings.Contains(out, "PRIVATE") {
+		t.Errorf("expected payment in output, got: %q", out)
+	}
+	if !strings.Contains(out, "(none)") {
+		t.Errorf("expected '(none)' for empty favorites, got: %q", out)
+	}
+}
+
+func TestFormatProfile_WithFavorites(t *testing.T) {
+	cars := []parkster.Car{
+		{ID: 100, LicenseNbr: "ABC123"},
+	}
+	payments := []parkster.PaymentAccount{
+		{PaymentAccountID: "PRIVATE:1234"},
+	}
+	favorites := []parkster.FavoriteZone{
+		{ID: 17429, Name: "Ericsson", ZoneCode: "80500", City: parkster.City{Name: "Kista"}},
+	}
+
+	out := FormatProfile("user@test.com", "NEUTRAL", cars, payments, favorites)
+
+	if !strings.Contains(out, "80500") {
+		t.Errorf("expected zone code in output, got: %q", out)
+	}
+	if !strings.Contains(out, "Ericsson") {
+		t.Errorf("expected zone name in output, got: %q", out)
+	}
+	if strings.Contains(out, "(none)") {
+		t.Errorf("should not contain '(none)' when favorites exist, got: %q", out)
+	}
+}
+
+func TestFormatProfile_MultipleCars(t *testing.T) {
+	cars := []parkster.Car{
+		{ID: 100, LicenseNbr: "ABC123", CountryCode: "SE", CarPersonalization: parkster.CarPersonalization{Name: "Volkswagen"}},
+		{ID: 101, LicenseNbr: "UPC304", CountryCode: "SE", CarPersonalization: parkster.CarPersonalization{Name: "Saab"}},
+	}
+	var payments []parkster.PaymentAccount
+	var favorites []parkster.FavoriteZone
+
+	out := FormatProfile("user@test.com", "NEUTRAL", cars, payments, favorites)
+
+	if !strings.Contains(out, "Volkswagen - ABC123") {
+		t.Errorf("expected first car, got: %q", out)
+	}
+	if !strings.Contains(out, "Saab - UPC304") {
+		t.Errorf("expected second car, got: %q", out)
+	}
+}
+
 func TestFormatMinutesSinceMidnight(t *testing.T) {
 	tests := []struct {
 		minutes  int

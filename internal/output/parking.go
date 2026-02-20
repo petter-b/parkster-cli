@@ -168,6 +168,54 @@ func FormatPaymentList(accounts []parkster.PaymentAccount) string {
 	return b.String()
 }
 
+// FormatFavoriteZoneList formats favorite zones for profile display
+func FormatFavoriteZoneList(zones []parkster.FavoriteZone) string {
+	var b strings.Builder
+	for i, z := range zones {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		if z.City.Name != "" {
+			fmt.Fprintf(&b, "  %-6s %s, %s", z.ZoneCode, z.Name, z.City.Name)
+		} else {
+			fmt.Fprintf(&b, "  %-6s %s", z.ZoneCode, z.Name)
+		}
+	}
+	return b.String()
+}
+
+// FormatProfile formats full account profile for human display
+func FormatProfile(username, accountType string, cars []parkster.Car, payments []parkster.PaymentAccount, favorites []parkster.FavoriteZone) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Account:   %s\n", username)
+	fmt.Fprintf(&b, "Type:      %s\n", accountType)
+
+	b.WriteString("\nCars:\n")
+	if len(cars) == 0 {
+		b.WriteString("  (none)\n")
+	} else {
+		b.WriteString(FormatCarList(cars))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\nPayments:\n")
+	if len(payments) == 0 {
+		b.WriteString("  (none)\n")
+	} else {
+		b.WriteString(FormatPaymentList(payments))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\nFavorite zones:\n")
+	if len(favorites) == 0 {
+		b.WriteString("  (none)")
+	} else {
+		b.WriteString(FormatFavoriteZoneList(favorites))
+	}
+
+	return b.String()
+}
+
 // FormatParkingList formats multiple parkings for status display
 func FormatParkingList(parkings []parkster.Parking) string {
 	var b strings.Builder
