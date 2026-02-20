@@ -21,10 +21,6 @@ var (
 	detectedCaller caller.Info
 )
 
-// errSilent indicates the error message was already printed.
-// Execute() will skip printing but still return non-nil for os.Exit(1).
-var errSilent = errors.New("silent error: already printed")
-
 var rootCmd = &cobra.Command{
 	Use:   "parkster",
 	Short: "Manage Parkster parking sessions from the terminal",
@@ -84,11 +80,6 @@ func Execute() error {
 			}
 			output.PrintError(err.Error(), mode)
 		}
-		return err
-	}
-
-	// errSilent — keep compatibility until fully replaced
-	if errors.Is(err, errSilent) {
 		return err
 	}
 
