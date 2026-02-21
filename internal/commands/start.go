@@ -32,10 +32,13 @@ var startCmd = &cobra.Command{
 Specify the duration using --duration (minutes) or --until (HH:MM today).
 One of --duration or --until is required.
 
+If the zone is in your favorites, --lat/--lon can be omitted.
+
 Examples:
+  parkster start --zone 80500 --duration 30
+  parkster start --zone 80500 --until 18:30
   parkster start --zone 80500 --duration 30 --lat 59.373 --lon 17.893
-  parkster start --zone 80500 --until 18:30 --lat 59.373 --lon 17.893
-  parkster start --dry-run --zone 80500 --duration 30 --lat 59.373 --lon 17.893`,
+  parkster start --dry-run --zone 80500 --duration 30`,
 	Args: cobra.NoArgs,
 	RunE: runStart,
 }
@@ -48,8 +51,8 @@ func init() {
 	startCmd.Flags().String("car", "", "License plate (auto-selects if only one car)")
 	startCmd.Flags().String("payment", "", "Payment account ID (auto-selects if only one)")
 	startCmd.Flags().Bool("dry-run", false, "Simulate parking flow without starting (shows cost estimate)")
-	startCmd.Flags().Float64("lat", 0, "Latitude for zone code lookup")
-	startCmd.Flags().Float64("lon", 0, "Longitude for zone code lookup")
+	startCmd.Flags().Float64("lat", 0, "Latitude for zone code lookup (optional for favorite zones)")
+	startCmd.Flags().Float64("lon", 0, "Longitude for zone code lookup (optional for favorite zones)")
 	startCmd.Flags().Int("radius", 0, "Search radius in meters for zone code lookup (default 500)")
 	_ = startCmd.MarkFlagRequired("zone")
 }
