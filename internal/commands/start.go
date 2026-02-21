@@ -54,19 +54,31 @@ func init() {
 	_ = startCmd.MarkFlagRequired("zone")
 }
 
-// resolveZone looks up a zone by sign code using GetZoneByCode.
-// Requires lat/lon coordinates for the location search.
-func resolveZone(client parkster.API, zoneCode string, lat, lon float64, radiusMeters int) (*parkster.Zone, error) {
-	if lat == 0 && lon == 0 {
-		return nil, &ExitError{Code: ExitUsage, Err: fmt.Errorf("zone code %q requires --lat and --lon flags for lookup", zoneCode)}
+// resolveZone looks up a zone by sign code.
+// When lat/lon are provided, uses GetZoneByCode (location search).
+// When lat/lon are zero, matches against favorite zones and uses GetZone directly.
+func resolveZone(client parkster.API, zoneCode string, lat, lon float64, radiusMeters int, favorites []parkster.FavoriteZone) (*parkster.Zone, error) {
+	// Explicit coordinates: use location search
+	if lat != 0 || lon != 0 {
+		zone, err := client.GetZoneByCode(zoneCode, lat, lon, radiusMeters)
+		if err != nil {
+			return nil, &ExitError{Code: ExitNotFound, Err: fmt.Errorf("zone %q not found: %w", zoneCode, err)}
+		}
+		return zone, nil
 	}
 
-	zone, err := client.GetZoneByCode(zoneCode, lat, lon, radiusMeters)
-	if err != nil {
-		return nil, &ExitError{Code: ExitNotFound, Err: fmt.Errorf("zone %q not found: %w", zoneCode, err)}
+	// No coordinates: try favorite zones
+	for _, fav := range favorites {
+		if fav.ZoneCode == zoneCode {
+			zone, err := client.GetZone(fav.ID)
+			if err != nil {
+				return nil, &ExitError{Code: ExitAPI, Err: fmt.Errorf("failed to fetch favorite zone %q: %w", zoneCode, err)}
+			}
+			return zone, nil
+		}
 	}
 
-	return zone, nil
+	return nil, &ExitError{Code: ExitUsage, Err: fmt.Errorf("zone %q not in your favorites — use --lat/--lon for lookup", zoneCode)}
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
@@ -204,7 +216,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// Resolve zone by sign code
 	debugLog("resolving zone: %s", zoneInput)
-	zone, err := resolveZone(client, zoneInput, lat, lon, radius)
+	zone, err := resolveZone(client, zoneInput, lat, lon, radius, user.FavoriteZones)
 	if err != nil {
 		return err
 	}

@@ -117,7 +117,7 @@ func runZonesInfo(cmd *cobra.Command, args []string) error {
 	client := newAPIClient("", "")
 
 	debugLog("looking up zone %q", zoneInput)
-	zone, err := resolveZone(client, zoneInput, lat, lon, 0)
+	zone, err := resolveZone(client, zoneInput, lat, lon, 0, nil)
 	if err != nil {
 		return err
 	}

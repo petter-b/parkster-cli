@@ -1506,7 +1506,7 @@ func TestResolveZone_ByCode_WithLatLon_Success(t *testing.T) {
 		getZoneByCodeResp: &parkster.Zone{ID: 17429, Name: "Ericsson", ZoneCode: "80500"},
 	}
 
-	zone, err := resolveZone(mock, "80500", 59.373, 17.893, 500)
+	zone, err := resolveZone(mock, "80500", 59.373, 17.893, 500, nil)
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -1519,7 +1519,7 @@ func TestResolveZone_ByCode_WithoutLatLon_ErrorHints(t *testing.T) {
 	mock := &mockAPI{}
 
 	// Non-numeric input without lat/lon should hint about --lat/--lon
-	_, err := resolveZone(mock, "ABC80500", 0, 0, 0)
+	_, err := resolveZone(mock, "ABC80500", 0, 0, 0, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1533,12 +1533,80 @@ func TestResolveZone_CodeNotFound_Error(t *testing.T) {
 		getZoneByCodeErr: fmt.Errorf("zone code \"XXXXX\" not found near 59.3730,17.8930"),
 	}
 
-	_, err := resolveZone(mock, "XXXXX", 59.373, 17.893, 500)
+	_, err := resolveZone(mock, "XXXXX", 59.373, 17.893, 500, nil)
 	if err == nil {
 		t.Fatal("expected error when zone code not found")
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected 'not found' in error, got: %v", err)
+	}
+}
+
+func TestResolveZone_FavoriteZone_NoLatLon_Success(t *testing.T) {
+	mock := &mockAPI{
+		getZoneResp: &parkster.Zone{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+	}
+
+	favorites := []parkster.FavoriteZone{
+		{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"},
+	}
+
+	zone, err := resolveZone(mock, "80500", 0, 0, 0, favorites)
+	if err != nil {
+		t.Fatalf("expected favorite zone to resolve without lat/lon, got: %v", err)
+	}
+	if zone.ID != 17429 {
+		t.Errorf("expected zone ID 17429, got %d", zone.ID)
+	}
+}
+
+func TestResolveZone_NotFavorite_NoLatLon_Error(t *testing.T) {
+	mock := &mockAPI{}
+
+	favorites := []parkster.FavoriteZone{
+		{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"},
+	}
+
+	_, err := resolveZone(mock, "99999", 0, 0, 0, favorites)
+	if err == nil {
+		t.Fatal("expected error for non-favorite zone without lat/lon")
+	}
+	if !strings.Contains(err.Error(), "not in your favorites") {
+		t.Errorf("expected 'not in your favorites' in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--lat") {
+		t.Errorf("expected '--lat' hint in error, got: %v", err)
+	}
+}
+
+func TestResolveZone_NoFavorites_NoLatLon_Error(t *testing.T) {
+	mock := &mockAPI{}
+
+	_, err := resolveZone(mock, "80500", 0, 0, 0, nil)
+	if err == nil {
+		t.Fatal("expected error without favorites or lat/lon")
+	}
+	if !strings.Contains(err.Error(), "--lat") {
+		t.Errorf("expected '--lat' hint in error, got: %v", err)
+	}
+}
+
+func TestResolveZone_FavoriteZone_WithLatLon_UsesLocationSearch(t *testing.T) {
+	mock := &mockAPI{
+		getZoneByCodeResp: &parkster.Zone{ID: 17429, Name: "Ericsson Kista", ZoneCode: "80500", FeeZone: parkster.FeeZone{ID: 27545}},
+	}
+
+	favorites := []parkster.FavoriteZone{
+		{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"},
+	}
+
+	// Even though zone is a favorite, explicit lat/lon should use location search
+	zone, err := resolveZone(mock, "80500", 59.373, 17.893, 500, favorites)
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if zone.ID != 17429 {
+		t.Errorf("expected zone ID 17429, got %d", zone.ID)
 	}
 }
 
