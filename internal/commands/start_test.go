@@ -1669,6 +1669,78 @@ func TestStart_Debug_LogsSteps(t *testing.T) {
 	}
 }
 
+// --- Favorite zone start (no lat/lon) integration tests ---
+
+func TestStart_FavoriteZone_NoLatLon_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+			FavoriteZones:   []parkster.FavoriteZone{{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		startParkingResp: &parkster.Parking{ID: 999},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30")
+	if err != nil {
+		t.Fatalf("expected success with favorite zone, got: %v", err)
+	}
+	if !strings.Contains(stderr, "Parking started") {
+		t.Errorf("expected 'Parking started' in stderr, got: %q", stderr)
+	}
+}
+
+func TestStart_NonFavoriteZone_NoLatLon_Error(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+			FavoriteZones:   []parkster.FavoriteZone{{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"}},
+		},
+	}
+	withMockClient(t, mock)
+
+	_, _, err := executeCommand("start", "--zone", "99999", "--duration", "30")
+	if err == nil {
+		t.Fatal("expected error for non-favorite zone without lat/lon")
+	}
+	if !strings.Contains(err.Error(), "not in your favorites") {
+		t.Errorf("expected 'not in your favorites' in error, got: %v", err)
+	}
+}
+
+func TestStart_DryRun_FavoriteZone_NoLatLon_Success(t *testing.T) {
+	setAuth(t)
+
+	mock := &mockAPI{
+		loginResp: &parkster.User{
+			ID:              1,
+			Cars:            []parkster.Car{{ID: 100, LicenseNbr: "ABC123"}},
+			PaymentAccounts: []parkster.PaymentAccount{{PaymentAccountID: "pay1"}},
+			FavoriteZones:   []parkster.FavoriteZone{{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista"}},
+		},
+		getZoneResp:      &parkster.Zone{ID: 17429, ZoneCode: "80500", Name: "Ericsson Kista", FeeZone: parkster.FeeZone{ID: 27545}},
+		estimateCostResp: &parkster.CostEstimate{Amount: 15.0, Currency: "SEK"},
+	}
+	withMockClient(t, mock)
+
+	_, stderr, err := executeCommand("start", "--zone", "80500", "--duration", "30", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected dry-run success with favorite zone, got: %v", err)
+	}
+	if !strings.Contains(stderr, "DRY RUN") {
+		t.Errorf("expected 'DRY RUN' in stderr, got: %q", stderr)
+	}
+}
+
 // startTracker wraps mockAPI to detect StartParking calls.
 type startTracker struct {
 	*mockAPI
