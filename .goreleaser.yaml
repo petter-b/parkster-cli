@@ -1,0 +1,49 @@
+version: 2
+
+builds:
+  - main: ./cmd/parkster
+    binary: parkster
+    ldflags:
+      - -X github.com/petter-b/parkster-cli/internal/commands.Version={{.Version}}
+      - -X github.com/petter-b/parkster-cli/internal/commands.Commit={{.Commit}}
+      - -X github.com/petter-b/parkster-cli/internal/commands.BuildDate={{.Date}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - repository:
+      owner: petter-b
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/petter-b/parkster-cli
+    description: CLI tool for managing Parkster parking sessions
+    license: MIT
+    install: |
+      bin.install "parkster"
+    test: |
+      system bin/"parkster", "version"
