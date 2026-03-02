@@ -1,22 +1,31 @@
 # Parkster CLI
 
 [![CI](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/petter-b/parkster-cli/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/petter-b/parkster-cli/badge.svg)](https://codecov.io/gh/petter-b/parkster-cli)
 
 A command-line tool for managing [Parkster](https://parkster.com) parking sessions. Start, stop, change, and check parking status from your terminal.
 
 ## Install
 
-```bash
-# Build from source
-make build
-./bin/parkster --help
+### Homebrew (macOS/Linux)
 
-# Or install to $GOPATH/bin
-make install
+```bash
+brew install petter-b/tap/parkster
 ```
 
+### Download binary
+
+Download the latest release from [GitHub Releases](https://github.com/petter-b/parkster-cli/releases).
+
+### Build from source
+
 Requires Go 1.24+.
+
+```bash
+git clone https://github.com/petter-b/parkster-cli.git
+cd parkster-cli
+make build
+./bin/parkster --help
+```
 
 ## Quick Start
 
@@ -45,6 +54,7 @@ parkster stop
 | `parkster stop` | Stop an active parking session |
 | `parkster change` | Change parking end time |
 | `parkster status` | View active parking sessions |
+| `parkster profile` | Show account info, cars, payments, and favorite zones |
 | `parkster zones search` | Search for zones near GPS coordinates |
 | `parkster zones info` | Show details for a zone by sign code |
 | `parkster auth login` | Store credentials in OS keychain |
