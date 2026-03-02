@@ -44,3 +44,15 @@ coverage.html
 
 # Temporary/unknown files
 -
+
+# Internal docs (kept locally only)
+API.md
+TESTING.md
+parkster-api.yaml
+test_api.py
+requirements.txt
+run_test.sh
+docs/plans/
+
+# Claude Code project config
+.claude/
