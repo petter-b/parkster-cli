@@ -52,7 +52,7 @@ parkster-api.yaml
 test_api.py
 requirements.txt
 run_test.sh
-docs/plans/
+docs/
 
 # Agent/editor config (kept locally only)
 .claude/
