@@ -33,6 +33,7 @@ func TestSelectParking_SingleParking_AutoSelects(t *testing.T) {
 	}
 	if parking == nil {
 		t.Fatal("expected non-nil parking")
+		return
 	}
 	if parking.ID != 100 {
 		t.Errorf("expected parking ID 100, got %d", parking.ID)

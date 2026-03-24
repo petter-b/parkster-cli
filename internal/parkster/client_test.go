@@ -16,6 +16,7 @@ func TestNewClient(t *testing.T) {
 
 	if client == nil {
 		t.Fatal("NewClient returned nil")
+		return
 	}
 	if client.username != "test@example.com" {
 		t.Errorf("Expected username test@example.com, got %s", client.username)

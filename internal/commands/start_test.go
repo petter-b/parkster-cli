@@ -1012,6 +1012,7 @@ func TestStart_RadiusDefault_IsZero(t *testing.T) {
 	f := startCmd.Flags().Lookup("radius")
 	if f == nil {
 		t.Fatal("expected radius flag on start command")
+		return
 	}
 	if f.DefValue != "0" {
 		t.Errorf("radius default should be 0, got %q", f.DefValue)

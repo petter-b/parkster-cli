@@ -198,6 +198,7 @@ func TestZonesSearch_RadiusDefault_IsZero(t *testing.T) {
 	f := zonesSearchCmd.Flags().Lookup("radius")
 	if f == nil {
 		t.Fatal("--radius flag not found")
+		return
 	}
 	if f.DefValue != "0" {
 		t.Errorf("expected --radius default '0', got %q", f.DefValue)
