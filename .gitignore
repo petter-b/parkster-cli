@@ -54,5 +54,8 @@ requirements.txt
 run_test.sh
 docs/plans/
 
-# Claude Code project config
+# Agent/editor config (kept locally only)
 .claude/
+.devcontainer/
+.github/copilot-instructions.md
+.planning/
