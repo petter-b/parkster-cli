@@ -6,7 +6,7 @@ A command-line tool for managing [Parkster](https://parkster.com) parking sessio
 
 ## Install
 
-### Homebrew (macOS/Linux) — coming soon
+### Homebrew (macOS/Linux)
 
 ```bash
 brew install petter-b/tap/parkster
